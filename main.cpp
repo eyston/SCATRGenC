@@ -111,9 +111,9 @@ int main()
 	fscanf(input_file, "%c %c %c %c %c %c\n", &lflag_c[0], &lflag_c[1], &lflag_c[2], &lflag_c[3], &lflag_c[4], &lflag_c[5]);
 	fscanf(input_file, "%f %f %f %f %c\n", &rmin, &rmax, &rmaxu, &qmin, &lclose_c);
 	fscanf(input_file, "%f\n", &rcrit);
-	fscanf(input_file, "%s\n", &output_file_name);
-	fscanf(input_file, "%s\n", &frame);
-	fscanf(input_file, "%s\n", &fopenstat);
+	fscanf(input_file, "%s\n", output_file_name);
+	fscanf(input_file, "%s\n", frame);
+	fscanf(input_file, "%s\n", fopenstat);
 
 	fclose(input_file);
 	
