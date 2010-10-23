@@ -12,7 +12,7 @@ void coord_h2j(int nbod, float mass[], float xh[], float yh[], float zh[],
 									   float xj[], float yj[], float zj[],
 									   float vxj[], float vyj[], float vzj[])
 {
-	float eta[nbod];
+	float *eta = new float[nbod];
 	float sumx, sumy, sumz, sumvx, sumvy, sumvz;
 	float capx, capy, capz, capvx, capvy, capvz;
 	
@@ -77,6 +77,8 @@ void coord_h2j(int nbod, float mass[], float xh[], float yh[], float zh[],
 			capvz = sumvz/eta[i];
 		}
 	}
+
+	delete[] eta;
 }
 
 int main()
@@ -86,6 +88,13 @@ int main()
 	float dtout, dtdump;
 	bool lflag[6];
 	char lflag_c[6];
+	float rmin, rmax, rmaxu, qmin;
+	bool lclose;
+	char lclose_c;
+	float rcrit;
+	char output_file_name[256];
+	char frame[4];
+	char fopenstat[8];
 	
 	/*ifstream input_file_s;
 	input_file_s.open("param.in");
@@ -100,7 +109,12 @@ int main()
 	fscanf(input_file, "%f %f %f %f\n", &t0, &tstop, &dt, &tinc);
 	fscanf(input_file, "%f %f\n", &dtout, &dtdump);
 	fscanf(input_file, "%c %c %c %c %c %c\n", &lflag_c[0], &lflag_c[1], &lflag_c[2], &lflag_c[3], &lflag_c[4], &lflag_c[5]);
-	
+	fscanf(input_file, "%f %f %f %f %c\n", &rmin, &rmax, &rmaxu, &qmin, &lclose_c);
+	fscanf(input_file, "%f\n", &rcrit);
+	fscanf(input_file, "%s\n", &output_file_name);
+	fscanf(input_file, "%s\n", &frame);
+	fscanf(input_file, "%s\n", &fopenstat);
+
 	fclose(input_file);
 	
 	printf("%f, %f, %f, %f\n", t0, tstop, dt, tinc);
@@ -114,6 +128,13 @@ int main()
 	
 	printf("%d, %d, %d, %d, %d, %d\n", lflag[0], lflag[1], lflag[2], lflag[3], lflag[4], lflag[5]);
 	
+	lclose = lclose_c == 'T';
+
+	printf("%f, %f, %f, %f, %d\n", rmin, rmax, rmaxu, qmin, lclose);
+	printf("%f\n", rcrit);
+	printf("%s\n", output_file_name);
+	printf("%s\n", frame);
+	printf("%s\n", fopenstat);
 	
 /*	cout << "load n-body values from file (xh, vh)" << endl;
 	cout << "convert n-body helio-centric coords to jacobian (xj)" << endl;
