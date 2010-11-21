@@ -85,8 +85,7 @@ void coord_h2j(int nbod, float mass[], float xh[], float yh[], float zh[],
 
 int main()
 {
-	
+
 	SimulationSetup setup = io_input("param.in");
-		
 	return 0;
 }
