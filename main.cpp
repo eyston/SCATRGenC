@@ -2,6 +2,8 @@
 #include <fstream>
 #include <stdio.h>
 
+#include "io_input.cpp"
+
 using namespace std;
 
 #define iterations 1
@@ -84,71 +86,7 @@ void coord_h2j(int nbod, float mass[], float xh[], float yh[], float zh[],
 int main()
 {
 	
-	float t0, tstop, dt, tinc;
-	float dtout, dtdump;
-	bool lflag[6];
-	char lflag_c[6];
-	float rmin, rmax, rmaxu, qmin;
-	bool lclose;
-	char lclose_c;
-	float rcrit;
-	char output_file_name[256];
-	char frame[4];
-	char fopenstat[8];
-	
-	/*ifstream input_file_s;
-	input_file_s.open("param.in");
-	
-	input_file_s >> t0 >> tstop >> dt >> tinc;
-	cout << t0 << "," << tstop << "," << dt << "," << tinc << endl;
-	input_file_s.close();*/
-	
-	FILE *input_file;
-	input_file = fopen("param.in", "r");
-	
-	fscanf(input_file, "%f %f %f %f\n", &t0, &tstop, &dt, &tinc);
-	fscanf(input_file, "%f %f\n", &dtout, &dtdump);
-	fscanf(input_file, "%c %c %c %c %c %c\n", &lflag_c[0], &lflag_c[1], &lflag_c[2], &lflag_c[3], &lflag_c[4], &lflag_c[5]);
-	fscanf(input_file, "%f %f %f %f %c\n", &rmin, &rmax, &rmaxu, &qmin, &lclose_c);
-	fscanf(input_file, "%f\n", &rcrit);
-	fscanf(input_file, "%s\n", &output_file_name);
-	fscanf(input_file, "%s\n", &frame);
-	fscanf(input_file, "%s\n", &fopenstat);
-
-	fclose(input_file);
-	
-	printf("%f, %f, %f, %f\n", t0, tstop, dt, tinc);
-	printf("%f, %f\n", dtout, dtdump);
-	printf("%c, %c, %c, %c, %c, %c\n", lflag_c[0], lflag_c[1], lflag_c[2], lflag_c[3], lflag_c[4], lflag_c[5]);
-	
-	for(int i=0; i<6; i++)
-	{
-		lflag[i] = lflag_c[i] == 'T';
-	}
-	
-	printf("%d, %d, %d, %d, %d, %d\n", lflag[0], lflag[1], lflag[2], lflag[3], lflag[4], lflag[5]);
-	
-	lclose = lclose_c == 'T';
-
-	printf("%f, %f, %f, %f, %d\n", rmin, rmax, rmaxu, qmin, lclose);
-	printf("%f\n", rcrit);
-	printf("%s\n", output_file_name);
-	printf("%s\n", frame);
-	printf("%s\n", fopenstat);
-	
-/*	cout << "load n-body values from file (xh, vh)" << endl;
-	cout << "convert n-body helio-centric coords to jacobian (xj)" << endl;
-	cout << "calculate initial acceleration of n-bodies (ah)" << endl;
-	
-	for(int i=0; i < iterations; i++)
-	{
-		cout << " -- apply a heliocentric half-kick to n-bodies (xh)" << endl;
-		cout << " -- convert heliocentric velocities to jacobian velocities (vj)" << endl;
-		cout << " -- apply a drift in jacobian coordinates (xj)" << endl;
-		cout << " -- calculate new heliocentric velocities and positions (xh, vh)" << endl;
-		cout << " -- calculate the acceleration of n-bodies in heliocentric coords (ah)" << endl;
-		cout << " -- apply a heliocentric half-kick to n-bodies (xh)" << endl;
-	} */
-	
+	SimulationSetup setup = io_input("param.in");
+		
 	return 0;
 }
