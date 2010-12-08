@@ -4,7 +4,7 @@
 #include "io_input.h"
 #include "corrector.h"
 
-int main() {
+int main(int argc, char* argv[]) {
 
 	SimulationParameters params = io_input_params("param.in");
 
@@ -13,7 +13,6 @@ int main() {
 //	int t = params.t0;
 //	int tout = params.t0 + params.dtout;
 //	int tdump = params.t0 + params.dtdump;
-
 
 	invcorrector(bodies, params.tinc, params.dt);
 

@@ -10,7 +10,7 @@
 #include "corrector.h"
 #include "coord.h"
 #include "drift.h"
-#include "getachh.h"
+#include "getacch.h"
 #include "kickvh.h"
 
 void invcorrector(NBodies bodies, float tinc, float dt)
@@ -45,7 +45,7 @@ void correctterm_hel(NBodies bodies)
 
 	coord_j2h(bodies);
 
-	getachh(bodies, j2rp2, j4rp4);
+	getacch(bodies, j2rp2, j4rp4);
 
 	kickvh(bodies);
 
@@ -61,7 +61,7 @@ void correctterm_hel(NBodies bodies)
 
 	coord_j2h(bodies);
 
-	getachh(bodies, j2rp2, j4rp4);
+	getacch(bodies, j2rp2, j4rp4);
 
 	kickvh(bodies);
 
