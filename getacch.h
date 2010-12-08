@@ -1,7 +1,7 @@
 #ifndef GETACHH_H_
 #define GETACHH_H_
 
-void getacch(const size_t nbod, const float mass[NPLMAX], const float j2rp2, const float j4rp4, const float xj[NPLMAX], const float yj[NPLMAX], const float zj[NPLMAX], 
+void getacch(const size_t nbod, const float mass[NPLMAX], const float xj[NPLMAX], const float yj[NPLMAX], const float zj[NPLMAX], 
 	const float xh[NPLMAX], const float yh[NPLMAX], const float zh[NPLMAX], float axh[NPLMAX], float ayh[NPLMAX], float azh[NPLMAX]);
 
 static void getacch_ir3(const size_t nbod, const size_t istart, const float x[NPLMAX], const float y[NPLMAX], const float z[NPLMAX], float ir3[NPLMAX], float ir[NPLMAX]);

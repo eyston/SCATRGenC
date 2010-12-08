@@ -42,32 +42,33 @@ SimulationParameters io_input_params(const char *input_file_name)
 	return setup;
 }
 
-NBodies io_input_planets(const char *input_file_name)
+void io_input_planets(const char *input_file_name, size_t &nbod, size_t &npl, float mass[NPLMAX], float rpl[NPLMAX], float xh[NPLMAX], float yh[NPLMAX], float zh[NPLMAX], float vxh[NPLMAX], float vyh[NPLMAX], float vzh[NPLMAX])
 {
+	const size_t length = 256;
+
 	FILE *input_file;
+	char line[length];
 	input_file = fopen(input_file_name, "r");
 
-	int nbod, npl;
-
-	fscanf(input_file, "%i %i\n", &nbod, &npl);
+	fgets(line, length, input_file);
+	sscanf(line, "%i %i\n", &nbod, &npl);
 	printf("%i, %i\n", nbod, npl);
 
-	NBodies nbodies = NBodies();
-	nbodies.SetNBod(nbod);
-	nbodies.npl = npl;
+	fgets(line, length, input_file);
+	sscanf(line, "%f\n", &mass[0]);
 
-	fscanf(input_file, "%f %f\n", &nbodies.mass[0], &nbodies.j2rp2, &nbodies.j4rp4);
-	fscanf(input_file, "%f %f %f\n", &nbodies.xh[0], &nbodies.yh[0], &nbodies.zh[0]);
-	fscanf(input_file, "%f %f %f\n", &nbodies.vxh[0], &nbodies.vyh[0], &nbodies.vzh[0]);
+	fgets(line, length, input_file);
+	sscanf(line, "%f %f %f\n", &xh[0], &yh[0], &zh[0]);
 
-	for(int i=1; i < nbodies.nbod; i++)
+	fgets(line, length, input_file);
+	sscanf(line, "%f %f %f\n", &vxh[0], &vyh[0], &vzh[0]);
+
+	for(size_t i=1; i < nbod; i++)
 	{
-		fscanf(input_file, "%f %f\n", &nbodies.mass[i], &nbodies.rpl[i]);
-		fscanf(input_file, "%f %f %f\n", &nbodies.xh[i], &nbodies.yh[i], &nbodies.zh[i]);
-		fscanf(input_file, "%f %f %f\n", &nbodies.vxh[i], &nbodies.vyh[i], &nbodies.vzh[i]);
+		fscanf(input_file, "%f %f\n", &mass[i], &rpl[i]);
+		fscanf(input_file, "%f %f %f\n", &xh[i], &yh[i], &zh[i]);
+		fscanf(input_file, "%f %f %f\n", &vxh[i], &vyh[i], &vzh[i]);
 	}
 
 	fclose(input_file);
-
-	return nbodies;
 }

@@ -9,27 +9,12 @@
 
 int main(int argc, char* argv[]) {
 
-	SimulationParameters params = io_input_params("param.in");
-
-	NBodies bodies = io_input_planets("pl.in");
-
-	size_t nbod = bodies.nbod;
-	float j2rp2 = bodies.j2rp2;
-	float j4rp4 = bodies.j4rp4;
+	size_t nbod, npl;
 	float xj[NPLMAX], yj[NPLMAX], zj[NPLMAX], xh[NPLMAX], yh[NPLMAX], zh[NPLMAX];
 	float vxj[NPLMAX], vyj[NPLMAX], vzj[NPLMAX], vxh[NPLMAX], vyh[NPLMAX], vzh[NPLMAX];
-	float mass[NPLMAX], axh[NPLMAX], ayh[NPLMAX], azh[NPLMAX];
+	float mass[NPLMAX], rpl[NPLMAX], axh[NPLMAX], ayh[NPLMAX], azh[NPLMAX];
 
-	for(size_t i = 0; i < nbod; ++i)
-	{
-		mass[i] = bodies.mass[i];
-		xh[i] = bodies.xh[i];
-		yh[i] = bodies.yh[i];
-		zh[i] = bodies.zh[i];
-		vxh[i] = bodies.vxh[i];
-		vyh[i] = bodies.vyh[i];
-		vzh[i] = bodies.vzh[i];
-	}
+	io_input_planets("pl.in", nbod, npl, mass, rpl, xh, yh, zh, vxh, vyh, vzh);
 
 	coord_h2j(nbod, mass, xh, yh, zh, vxh, vyh, vzh, xj, yj, zj, vxj, vyj, vzj);
 
@@ -37,7 +22,7 @@ int main(int argc, char* argv[]) {
 
 	for(size_t i = 0; i < 10000000; ++i)
 	{
-		getacch(nbod, mass, j2rp2, j4rp4, xj, yj, zj, xh, yh, zh, axh, ayh, azh);
+		getacch(nbod, mass, xj, yj, zj, xh, yh, zh, axh, ayh, azh);
 	}
 
 	double end = omp_get_wtime();
