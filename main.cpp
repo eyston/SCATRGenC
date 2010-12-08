@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
 
 	double start = omp_get_wtime();
 
-	for(size_t i = 0; i < 2000000; ++i)
+	for(size_t i = 0; i < 10000000; ++i)
 	{
 		getacch(nbod, mass, j2rp2, j4rp4, xj, yj, zj, xh, yh, zh, axh, ayh, azh);
 	}

@@ -3,7 +3,7 @@
 
 #include <cstdlib>
 
-const size_t NPLMAX = 1024;
+const size_t NPLMAX = 64;
 const size_t NTPMAX = 1024;
 
 struct SimulationParameters
