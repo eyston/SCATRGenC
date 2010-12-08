@@ -3,9 +3,6 @@
 
 #include "structures.h"
 #include "io_input.h"
-#include "corrector.h"
-#include "rmvs3inner.h"
-#include "rmvs3.h"
 #include "getacch.h"
 #include "coord.h"
 

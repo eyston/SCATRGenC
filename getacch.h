@@ -1,10 +1,3 @@
-/*
- * getachh.h
- *
- *  Created on: Nov 23, 2010
- *      Author: Huey
- */
-
 #ifndef GETACHH_H_
 #define GETACHH_H_
 

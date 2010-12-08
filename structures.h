@@ -1,17 +1,10 @@
-/*
- * structures.h
- *
- *  Created on: Nov 23, 2010
- *      Author: Huey
- */
-
 #ifndef STRUCTURES_H_
 #define STRUCTURES_H_
 
-#define NPLMAX 1024
-//const size_t NPLMAX = 1024;
-#define NTPMAX 1024
-//const size_t NTPMAX = 1024;
+#include <cstdlib>
+
+const size_t NPLMAX = 1024;
+const size_t NTPMAX = 1024;
 
 struct SimulationParameters
 {

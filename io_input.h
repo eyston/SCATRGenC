@@ -1,10 +1,3 @@
-/*
- * io_input.h
- *
- *  Created on: Nov 23, 2010
- *      Author: Huey
- */
-
 #ifndef IO_INPUT_H_
 #define IO_INPUT_H_
 

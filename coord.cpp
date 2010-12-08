@@ -1,26 +1,5 @@
-/*
- * coord.cpp
- *
- *  Created on: Nov 23, 2010
- *      Author: Huey
- */
-
 #include <stdio.h>
 #include "structures.h"
-
-void coord_h2j(NBodies bodies)
-{
-	// leaf function
-
-	printf("coord_h2j called\n");
-}
-
-void coord_j2h(NBodies bodies)
-{
-	// leaf function
-
-	printf("coord_j2h called\n");
-}
 
 void coord_h2j(const size_t nbod, const float mass[NPLMAX], const float xh[NPLMAX], const float yh[NPLMAX], const float zh[NPLMAX], const float vxh[NPLMAX], const float vyh[NPLMAX], const float vzh[NPLMAX],
 	float xj[NPLMAX], float yj[NPLMAX], float zj[NPLMAX], float vxj[NPLMAX], float vyj[NPLMAX], float vzj[NPLMAX])

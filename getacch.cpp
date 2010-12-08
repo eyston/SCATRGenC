@@ -1,15 +1,7 @@
-/*
- * getachh.cpp
- *
- *  Created on: Nov 23, 2010
- *      Author: Huey
- */
-
 #include <stdio.h>
 #include <math.h>
 #include "structures.h"
 #include "getacch.h"
-#include "obl.h"
 
 void getacch(const size_t nbod, const float mass[NPLMAX], const float j2rp2, const float j4rp4, const float xj[NPLMAX], const float yj[NPLMAX], const float zj[NPLMAX], 
 	const float xh[NPLMAX], const float yh[NPLMAX], const float zh[NPLMAX], float axh[NPLMAX], float ayh[NPLMAX], float azh[NPLMAX])
@@ -20,36 +12,29 @@ void getacch(const size_t nbod, const float mass[NPLMAX], const float j2rp2, con
 	getacch_ir3(nbod, 1, xj, yj, zj, ir3j, irj);
 	getacch_ir3(nbod, 1, xh, yh, zh, ir3h, irh);
 
-	//printf("ir3j, irj: %E, %E\n", ir3j[1], irj[1]);
-	//printf("ir3h, irh: %E, %E\n", ir3h[1], irh[1]);
-
 	float axh0 = 0.0f;
 	float ayh0 = 0.0f;
 	float azh0 = 0.0f;
 
 	getacch_ah0(2, nbod, mass, xh, yh, zh, ir3h, axh0, ayh0, azh0);
-	//printf("axh0, ayh0, azh0: %E, %E, %E\n", axh0, ayh0, azh0);
 
 	float axh1[NPLMAX];
 	float ayh1[NPLMAX];
 	float azh1[NPLMAX];
 
 	getacch_ah1(nbod, mass, xh, yh, zh, xj, yj, zj, ir3h, ir3j, axh1, ayh1, azh1);
-	//printf("axh1, ayh1, azh1: %E, %E, %E\n", axh1[1], ayh1[1], azh1[1]);
 
 	float axh2[NPLMAX];
 	float ayh2[NPLMAX];
 	float azh2[NPLMAX];
 
 	getacch_ah2(nbod, mass, xj, yj, zj, ir3j, axh2, ayh2, azh2);
-	//printf("axh2, ayh2, azh2: %E, %E, %E\n", axh2[1], ayh2[1], azh2[1]);
 
 	float axh3[NPLMAX];
 	float ayh3[NPLMAX];
 	float azh3[NPLMAX];
 
 	getacch_ah3(nbod, mass, xh, yh, zh, axh3, ayh3, azh3);
-	//printf("axh3, ayh3, azh3: %E, %E, %E\n", axh3[1], ayh3[1], azh3[1]);
 
 	axh[0] = 0.0f;
 	ayh[0] = 0.0f;

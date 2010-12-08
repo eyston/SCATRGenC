@@ -1,10 +1,3 @@
-/*
- * io_input.cpp
- *
- *  Created on: Nov 23, 2010
- *      Author: Huey
- */
-
 #include <stdio.h>
 #include "io_input.h"
 #include "structures.h"
