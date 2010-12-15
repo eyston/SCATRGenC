@@ -6,6 +6,20 @@
 const size_t NPLMAX = 64;
 const size_t NTPMAX = 1024;
 
+#if defined(__GNUC__)
+	#define __GCC__
+#elif defined(_MSC_VER)
+	#define __MSVC__
+#else
+	#error unsupported compiler.
+#endif
+
+#if defined __GCC__
+	#define MM_ALIGN16 __attribute__(aligned(16))
+#elif defined __MSVC__
+	#define MM_ALIGN16 __declspec(align(16))
+#endif
+
 struct SimulationParameters
 {
 	float t0, tstop, dt, tinc;
