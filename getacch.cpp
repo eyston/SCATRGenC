@@ -69,7 +69,7 @@ void test_getacch_sse(const size_t nbod, const size_t nbod_v, __m128 mass[NPLMAX
 
 	__m128 axh0_v = zeroes, ayh0_v = zeroes, azh0_v = zeroes;
 
-	getacch_ah0(1, nbod, mass_s, xh_s, yh_s, zh_s, ir3h_s, axh0_s, ayh0_s, azh0_s);
+	getacch_ah0(2, nbod, mass_s, xh_s, yh_s, zh_s, ir3h_s, axh0_s, ayh0_s, azh0_s);
 	printf("SCALAR\n");
 	printf("axh0, ayh0, azh0: %E, %E, %E\n", axh0_s, ayh0_s, azh0_s);
 
@@ -142,7 +142,7 @@ void getacch(const size_t nbod, const float mass[NPLMAX], const float xj[NPLMAX]
 	float ayh0 = 0.0f;
 	float azh0 = 0.0f;
 
-	getacch_ah0(1, nbod, mass, xh, yh, zh, ir3h, axh0, ayh0, azh0);
+	getacch_ah0(2, nbod, mass, xh, yh, zh, ir3h, axh0, ayh0, azh0);
 
 	float axh1[NPLMAX];
 	float ayh1[NPLMAX];
@@ -245,7 +245,7 @@ static void getacch_ah2(const size_t nbod, const float mass[NPLMAX], const float
 	for(size_t i = 2; i < nbod; ++i)
 	{
 		etaj += mass[i-1];
-		float fac = mass[i] * mass[1] * ir3j[i] / etaj;
+		float fac = mass[i] * mass[0] * ir3j[i] / etaj;
 		axh2[i] = axh2[i-1] + fac * xj[i];
 		ayh2[i] = ayh2[i-1] + fac * yj[i];
 		azh2[i] = azh2[i-1] + fac * zj[i];
@@ -341,14 +341,14 @@ static void getacch_ah0_sse(const size_t nbod, const __m128 mass[NPLMAX], const 
 	const __m128 ir3h[NPLMAX], __m128 &axh0, __m128 &ayh0, __m128 &azh0)
 {
 	const __m128 zeroes = _mm_set1_ps(0.0f);
-	const unsigned int MM_ALIGN16 mask[4] = { 0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
-	const __m128 remove_sun =_mm_load_ps((float*) mask);
+	const unsigned int MM_ALIGN16 mask[4] = { 0, 0, 0xFFFFFFFF, 0xFFFFFFFF };
+	const __m128 remove_sun_and_p1 =_mm_load_ps((float*) mask);
 
 	axh0 = zeroes;
 	ayh0 = zeroes;
 	azh0 = zeroes;
 
-	__m128 ir3h0 = _mm_and_ps(ir3h[0], remove_sun);
+	__m128 ir3h0 = _mm_and_ps(ir3h[0], remove_sun_and_p1);
 	__m128 fac = _mm_mul_ps(mass[0], ir3h0);
 
 	__m128 xfac = _mm_mul_ps(fac, xh[0]);
@@ -429,7 +429,7 @@ static void getacch_ah2_sse(const size_t nbod, const __m128 mass[NPLMAX], const 
 {
 	float *etaj_s;
 	__m128 *etaj;
-	__m128 mass_p1;
+	__m128 mass_sun;
 
 	etaj_s = (float*) _mm_malloc(NPLMAX * sizeof(float), 16);
 	const float *mass_s = (float*)mass;
@@ -443,14 +443,14 @@ static void getacch_ah2_sse(const size_t nbod, const __m128 mass[NPLMAX], const 
 		etaj_s[i] = etaj_s[i-1] + mass_s[i-1];
 	}
 
-	mass_p1 = _mm_set1_ps(mass_s[1]);
+	mass_sun = _mm_set1_ps(mass_s[0]);
 
 	const unsigned int MM_ALIGN16 mask[4] = { 0, 0, 0xFFFFFFFF, 0xFFFFFFFF };
 	const __m128 remove_sun_and_p1 =_mm_load_ps((float*) mask);
 
 	for(size_t i = 0; i < nbod; ++i)
 	{
-		__m128 fac = _mm_div_ps(_mm_mul_ps(_mm_mul_ps(mass[i], mass_p1), ir3j[i]), etaj[i]);
+		__m128 fac = _mm_div_ps(_mm_mul_ps(_mm_mul_ps(mass[i], mass_sun), ir3j[i]), etaj[i]);
 		axh2[i] = _mm_mul_ps(fac, xj[i]);
 		ayh2[i] = _mm_mul_ps(fac, yj[i]);
 		azh2[i] = _mm_mul_ps(fac, zj[i]);
@@ -670,5 +670,76 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 		ayh3[i] = _mm_add_ps(ayh3[i], yacci);
 		azh3[i] = _mm_add_ps(azh3[i], zacci);
 
+	}
+}
+
+void getacch_ah3_tp(const size_t nbod, const size_t ntp, const float mass[NPLMAX], const float xh[NPLMAX], const float yh[NPLMAX], const float zh[NPLMAX], 
+	const float xht[NPLMAX], const float yht[NPLMAX], const float zht[NPLMAX], float axh3[NPLMAX], float ayh3[NPLMAX], float azh3[NPLMAX], const float mcent)
+{
+	for(size_t i = 0; i < ntp; ++i)
+	{
+		axh3[i] = 0.0f;
+		ayh3[i] = 0.0f;
+		azh3[i] = 0.0f;
+	}
+
+	float rji2, irij3, fac;
+
+	for(size_t j = 0; j < ntp; ++j)
+	{
+		for(size_t i = 0; i < nbod; ++i)
+		{
+			float dx = xht[j] - xh[i];
+			float dy = yht[j] - yh[i];
+			float dz = zht[j] - zh[i];
+			rji2 = dx*dx + dy*dy + dz*dz;
+
+			irij3 = 1.0f / (rji2 * sqrt(rji2));
+			fac = mass[i] * irij3;
+
+			axh3[j] = axh3[j] - fac * dx;
+			ayh3[j] = ayh3[j] - fac * dy;
+			azh3[j] = azh3[j] - fac * dz;
+		}
+
+		rji2 = xht[j]*xht[j] + yht[j]*yht[j] + zht[j]*zht[j];
+		irij3 = 1.0f / (rji2 * sqrt(rji2));
+
+		fac = mcent*irij3;
+		axh3[j] = axh3[j] + fac * xht[j];
+		ayh3[j] = ayh3[j] + fac * yht[j];
+		azh3[j] = azh3[j] + fac * zht[j];
+	}
+}
+
+void getacch_tp(const size_t nbod, const size_t npl, const size_t ntp, const float mass[NPLMAX], const float xh[NPLMAX], const float yh[NPLMAX], const float zh[NPLMAX], 
+	const float xht[NPLMAX], const float yht[NPLMAX], const float zht[NPLMAX], float axht[NPLMAX], float ayht[NPLMAX], float azht[NPLMAX], const bool bar, const float mcent)
+{
+	//float ir3ht[NPLMAX];
+	float ir3h[NPLMAX];
+
+	getacch_ir3(nbod, 1, xh, yh, zh, ir3h);
+	//getacch_ir3(ntp, 0, xht, yht, zht, ir3ht);
+
+	float axh0, ayh0, azh0;
+
+	getacch_ah0(1, nbod, mass, xh, yh, zh, ir3h, axh0, ayh0, azh0);
+
+	//printf("axh0, ayh0, azh0: %E, %E, %E\n", axh0, ayh0, azh0);
+
+	float axh3[NTPMAX];
+	float ayh3[NTPMAX];
+	float azh3[NTPMAX];
+
+	//printf("mcent: %E\n", mcent);
+
+	getacch_ah3_tp(nbod, ntp, mass, xh, yh, zh, xht, yht, zht, axh3, ayh3, azh3, mcent);
+
+	for(size_t i = 0; i < ntp; ++i)
+	{
+		axht[i] = axh0 + axh3[i];
+		//printf("%E, %E, %E\n", axh3[i], axh0, axht[i]);
+		ayht[i] = ayh0 + ayh3[i];
+		azht[i] = azh0 + azh3[i];
 	}
 }

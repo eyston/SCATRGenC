@@ -72,3 +72,31 @@ void io_input_planets(const char *input_file_name, size_t &nbod, size_t &npl, fl
 
 	fclose(input_file);
 }
+
+void io_input_particles(const char *input_file_name, size_t &ntp, float xht[NTPMAX], float yht[NTPMAX], float zht[NTPMAX], float vxht[NTPMAX], float vyht[NTPMAX], float vzht[NTPMAX])
+{
+	const size_t length = 256;
+
+	FILE *input_file;
+	char line[length];
+	input_file = fopen(input_file_name, "r");
+
+	fgets(line, length, input_file);
+	sscanf(line, "%i", &ntp);
+	printf("%i\n", ntp);
+
+	for(size_t i = 0; i < ntp; i++)
+	{
+		fgets(line, length, input_file);
+		sscanf(line, "%f %f %f", &xht[i], &yht[i], &zht[i]);
+		fgets(line, length, input_file);
+		sscanf(line, "%f %f %f", &vxht[i], &vyht[i], &vzht[i]);
+
+		fgets(line, length, input_file);
+		fgets(line, length, input_file);
+		fgets(line, length, input_file);
+		fgets(line, length, input_file);
+	}
+
+	fclose(input_file);
+}
