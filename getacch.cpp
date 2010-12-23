@@ -683,11 +683,12 @@ void getacch_ah3_tp(const size_t nbod, const size_t ntp, const float mass[NPLMAX
 		azh3[i] = 0.0f;
 	}
 
-	float rji2, irij3, fac;
 
-	//#pragma omp parallel for
+	#pragma omp parallel for
 	for(size_t j = 0; j < ntp; ++j)
 	{
+		float rji2, irij3, fac;
+
 		for(size_t i = 0; i < nbod; ++i)
 		{
 			float dx = xht[j] - xh[i];
