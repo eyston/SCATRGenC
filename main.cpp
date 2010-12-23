@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
 	float *ayht = (float*) _mm_malloc(NTPMAX * sizeof(float), 16);
 	float *azht = (float*) _mm_malloc(NTPMAX * sizeof(float), 16);
 
-	io_input_particles("tp256.in", ntp, xht, yht, zht, vxht, vyht, vzht);
+	io_input_particles("tpverybig.in", ntp, xht, yht, zht, vxht, vyht, vzht);
 
 	io_input_planets("pl.in.8", nbod, npl, mass, rpl, xh, yh, zh, vxh, vyh, vzh);
 	coord_h2j(nbod, mass, xh, yh, zh, vxh, vyh, vzh, xj, yj, zj, vxj, vyj, vzj);
@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
 	double start, end;
 	
 	start = omp_get_wtime();
-	for(size_t i = 0; i < 100000; ++i)
+	for(size_t i = 0; i < 10000; ++i)
 	{
 		getacch_tp(nbod, npl, ntp, mass, xh, yh, zh, xht, yht, zht, axht, ayht, azht, false, mass[0]);
 	}

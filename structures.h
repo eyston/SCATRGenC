@@ -4,7 +4,7 @@
 #include <cstdlib>
 
 const size_t NPLMAX = 64;
-const size_t NTPMAX = 1024;
+const size_t NTPMAX = 8096;
 
 #if defined(__GNUC__)
 	#define __GCC__
