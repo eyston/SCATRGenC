@@ -53,10 +53,10 @@ int main(int argc, char* argv[]) {
 	float *ayht = (float*) _mm_malloc(NTPMAX * sizeof(float), 16);
 	float *azht = (float*) _mm_malloc(NTPMAX * sizeof(float), 16);
 
-	//io_input_particles("tp256.in", ntp, xht, yht, zht, vxht, vyht, vzht);
+	io_input_particles("tp256.in", ntp, xht, yht, zht, vxht, vyht, vzht);
 
-	//io_input_planets("pl.in.8", nbod, npl, mass, rpl, xh, yh, zh, vxh, vyh, vzh);
-	//coord_h2j(nbod, mass, xh, yh, zh, vxh, vyh, vzh, xj, yj, zj, vxj, vyj, vzj);
+	io_input_planets("pl.in.8", nbod, npl, mass, rpl, xh, yh, zh, vxh, vyh, vzh);
+	coord_h2j(nbod, mass, xh, yh, zh, vxh, vyh, vzh, xj, yj, zj, vxj, vyj, vzj);
 
 	//getacch_tp(nbod, npl, ntp, mass, xh, yh, zh, xht, yht, zht, axht, ayht, azht, false, mass[0]);
 
@@ -71,15 +71,15 @@ int main(int argc, char* argv[]) {
 	//printf("%E, %E, %E\n", axht[8], ayht[8], azht[8]);
 	//printf("%E, %E, %E\n", axht[9], ayht[9], azht[9]);
 
-	//double start, end;
-	//
-	//start = omp_get_wtime();
-	//for(size_t i = 0; i < 100000; ++i)
-	//{
-	//	getacch_tp(nbod, npl, ntp, mass, xh, yh, zh, xht, yht, zht, axht, ayht, azht, false, mass[0]);
-	//}
-	//end = omp_get_wtime();
-	//printf("time: %f\n", end - start);
+	double start, end;
+	
+	start = omp_get_wtime();
+	for(size_t i = 0; i < 100000; ++i)
+	{
+		getacch_tp(nbod, npl, ntp, mass, xh, yh, zh, xht, yht, zht, axht, ayht, azht, false, mass[0]);
+	}
+	end = omp_get_wtime();
+	printf("time: %f\n", end - start);
 
 
 
@@ -133,12 +133,12 @@ int main(int argc, char* argv[]) {
 	io_input_planets("pl.in.8", nbod, npl, mass, rpl, xh, yh, zh, vxh, vyh, vzh);
 	coord_h2j(nbod, mass, xh, yh, zh, vxh, vyh, vzh, xj, yj, zj, vxj, vyj, vzj);
 
-	double start = omp_get_wtime();
+	start = omp_get_wtime();
 	for(size_t i = 0; i < 1000000; ++i)
 	{
 		getacch_sse(2, mass_sse, xj_sse, yj_sse, zj_sse, xh_sse, yh_sse, zh_sse, axh_sse, ayh_sse, azh_sse);
 	}
-	double end = omp_get_wtime();
+	end = omp_get_wtime();
 	printf("time: %f\n", end - start);
 
 	io_input_planets("pl.in.8", nbod, npl, mass, rpl, xh, yh, zh, vxh, vyh, vzh);
