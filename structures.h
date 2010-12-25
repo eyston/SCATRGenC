@@ -5,6 +5,7 @@
 
 const size_t NPLMAX = 64;
 const size_t NTPMAX = 8096;
+const size_t NPLMAX_V = 16;
 
 #if defined(__GNUC__)
 	#define __GCC__

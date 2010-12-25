@@ -5,6 +5,7 @@
 #include "structures.h"
 #include "io_input.h"
 #include "getacch.h"
+#include "getacch_sse.h"
 #include "coord.h"
 
 
@@ -74,7 +75,7 @@ int main(int argc, char* argv[]) {
 	double start, end;
 	
 	start = omp_get_wtime();
-	for(size_t i = 0; i < 10000; ++i)
+	for(size_t i = 0; i < 1000; ++i)
 	{
 		getacch_tp(nbod, npl, ntp, mass, xh, yh, zh, xht, yht, zht, axht, ayht, azht, false, mass[0]);
 	}

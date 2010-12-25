@@ -7,6 +7,7 @@ SRCS +=$(SRCDIR)/getacch.cpp
 SRCS +=$(SRCDIR)/coord.cpp
 SRCS +=$(SRCDIR)/io_input.cpp
 SRCS +=$(SRCDIR)/structures.h
+SRCS +=$(SRCDIR)/getacch_sse.cpp
 
 OBJS := $(SRCS)
 
