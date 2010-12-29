@@ -28,6 +28,7 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 /// ad-hoc scratch buffer, avoid embiggening the stack too much.
 struct scratchpad_t {
 	// NPLMAX_V is NPLMAX for __m128, right?
+	// correct, NPLMAX_V is NPLMAX / 4 ... but not used consistently (if at all) for function definitions
 	__m128 MM_ALIGN16 ir3j[NPLMAX_V];
 	__m128 MM_ALIGN16 ir3h[NPLMAX_V];
 	__m128 MM_ALIGN16 etaj[NPLMAX_V];
@@ -51,6 +52,12 @@ namespace {
 		// in case nbod's tests don't propagate up there.
 		if (unlikely(nbod < 1))
 			return;
+
+		// I think this is a pretty self explanatory function.
+		// Its called twice, once for h = heliocentric coordinates, once for j = jacobian coordinates
+		// in both cases the suns position is (0, 0, 0) so its ir3 ends up as NaN (1 / 0).
+		// This makes me think its best to pull the sun out of this vector and leave it as just planets.
+		// I'll point out other places that make me think this too.
 
 		const __m128 ones = _mm_set1_ps(1.0f);
 
@@ -78,7 +85,26 @@ namespace {
 		if (unlikely(nbod < 1))
 			return;
 
+		// okay, so the whole idea of all of these functions (ah0, ah1, ah2, ah3) is to calculate different portions of the planets acceleration due to other planets
+		// So if we have 4 planets and the sun, then p1, p2, p3, p4 all acceleration each other due to newtons law of gravity F = ma = (Gm1m2/r^2).
+		// In this case we are specifically dealing with a system that has a dominant mass -- the sun.  This knowledge (that the sun is the dominant mass) can be exploited
+		// to create much larger time steps.  Essentially you calculate the planets (p1, p2, etc) perfect orbit around the sun as if there were no other planets.  You then
+		// calculate the permutations that each other planet puts on the planets orbit around the sun (so p1 orbits the sun, but is slightly modified by p2, p3, p4, etc).
+		//
+		// These functions (ah0, ah1, ah2, ah3) are all calculating different aspects of the planets accelerating each other.  At the end the accelerations are summed to get
+		// a final acceleration.  so the acceleration of p1 = ah0 + ah1(p1) + ah2(p1) + ah3(p1).
+		//
+		// ah0 is special in that its the same for all planets.  So technically we could save axh0, ayh0, azh0 as a float.  The reason I return them as vectors is to make the
+		// summing step easier (ah0 + ah1 + ah2, etc).  This may be dumb.
+		// So at the end axh0_vector = { axh0_scalar, axh0_scalar, axh0_scalar, axh0_scalar } (a vector with 4 identical values).
+		//
+		// I can get an explanation from my friend of what each function accounts for.  The fortran code simply refers to them as 'terms'.
+
 		const __m128 zeroes = _mm_set1_ps(0.0f);
+
+		// these exist just so we can bitmask out the sun and p1.  If you look at the scalar version there is a parameter called istart that is 2.  This means we want the sun,
+		// and p1 to not have any effect on the value of ah0.
+		// again, this is another situation where we have to treat the sun as a special case which makes me think moving it out of the nbody vector could be smart.
 		const unsigned int MM_ALIGN16 mask[4] = { 0, 0, 0xFFFFFFFF, 0xFFFFFFFF };
 		const __m128 remove_sun_and_p1 =_mm_load_ps((float*) mask);
 
@@ -86,13 +112,20 @@ namespace {
 		ayh0 = zeroes;
 		azh0 = zeroes;
 
+		// essentially we are pulling the first iteration out of the loop because we treat the sun and p1 special
+		// since we want the sun and p1 to have no affect of the ah0 values if we set their ir3h to zero then it carries through the rest of the equal to finish as zero.
+		// this is kind of ghetto (okay, real ghetto) for the sun since at this point its ir3h is NaN.  Again, the sun as a special case ...
 		__m128 ir3h0 = _mm_and_ps(ir3h[0], remove_sun_and_p1);
+
+		// okay, so if we look at scalar we get: float fac = mass[i] * ir3h[i];  which means fac for sun / p1 = 0 since ir3h is zero
 		__m128 fac = _mm_mul_ps(mass[0], ir3h0);
 
+		// xfac, yfac, zfac are fac * x, y, z ... but we also accumulate in them.  So the first iteration (i = 0) initializes their values, but in the loop we add results to them.
 		__m128 xfac = _mm_mul_ps(fac, h.x[0]);
 		__m128 yfac = _mm_mul_ps(fac, h.y[0]);
 		__m128 zfac = _mm_mul_ps(fac, h.z[0]);
 
+		// we just repeat for 1 to N and keep accumulationg xfac, yfac, zfac
 		for(size_t i = 1; i < nbod; ++i)
 		{
 			fac = _mm_mul_ps(mass[i], ir3h[i]);
@@ -100,6 +133,11 @@ namespace {
 			yfac = _mm_add_ps(yfac, _mm_mul_ps(fac, h.y[i]));
 			zfac = _mm_add_ps(zfac, _mm_mul_ps(fac, h.z[i]));
 		}
+
+		// all this bullshit below is to just do a horizontal add on xfac, yfac, and zfac.
+		// actually, I lied, its to do the horizontal add, get a single scalar, and then populate the axh0, ayh0, azh0 with that scalar in all positions (hence the _mm_set1_ps).
+
+		// this version was vector -> scalar -> sum -> vector route
 
 		//float MM_ALIGN16 mx[4], mxtot;
 		//_mm_store_ps(mx, xfac);
@@ -117,6 +155,9 @@ namespace {
 		//azh0 = _mm_set1_ps(0.0f - mztot);
 
 		// What the fuck are you doing?
+
+		// this version was doing a vector add that I found in the intel optimization guide of how to horizontally sum 4 vectors so that the sum is a single componenent of a final vector.
+		// in this case the 4th vector is just zeroes, and vector 1-3 are x, y, and z.
 		__m128 t1a = _mm_movelh_ps(yfac, xfac);
 		__m128 t1b = _mm_movehl_ps(xfac, yfac);
 		__m128 t1c = _mm_movelh_ps(zeroes, zfac);
@@ -128,9 +169,11 @@ namespace {
 		__m128 t3a = _mm_shuffle_ps(t2a, t2b, _MM_SHUFFLE(0, 2, 0, 2));
 		__m128 t3b = _mm_shuffle_ps(t2a, t2b, _MM_SHUFFLE(1, 3, 1, 3));
 
-		__m128 tot = _mm_add_ps(t3a, t3b);
+		__m128 tot = _mm_add_ps(t3a, t3b); // tot = {sum(xfac), sum(yfac), sum(zfac), sum(zeroes)}
 
+		// populate axh0 with sum(xfac) at all positions ... same for y and z
 		axh0 = _mm_shuffle_ps(tot, tot, _MM_SHUFFLE(0, 0, 0, 0));
+		// make it negative.
 		axh0 = _mm_sub_ps(zeroes, axh0);
 		ayh0 = _mm_shuffle_ps(tot, tot, _MM_SHUFFLE(1, 1, 1, 1));
 		ayh0 = _mm_sub_ps(zeroes, ayh0);
@@ -150,9 +193,17 @@ namespace {
 		if (unlikely(nbod < 1))
 			return;
 
+		// in the scalar version we use the mass of the sun for all of our calculations
+		// so here we pull that out and a create a mass_sun vector ... again, another hint to make the sun its own vector instead of with the planets.
 		float *mass_f = (float*) mass;
 		__m128 mass_sun = _mm_set1_ps(mass_f[0]);
 
+		// for reference h = heliocentric (sun = 0,0,0) and j = jacobian (some weird center of mass / vector type coordinate system).
+		// so it looks like we are using the difference in coordinate system positions to get some value.  not an astronomer though :)
+		//
+		// one thing to note is that the scalar version has sun and p1 set to zero.  I don't do that.  I wonder if thats an error or it works out
+		// because diff_x, diff_y and diff_z end up being zero?  I'll have to double check that.
+		// if I need to add that I would use the bitmask like in ah0 (and, again, would question why the sun is in this vector).
 		for(size_t i = 0; i < nbod; ++i) {
 			// again, simple fix.
 			// load.
@@ -194,6 +245,18 @@ namespace {
 		etaj_s[0] = 0.0f;
 		etaj_s[1] = mass_s[0];
 		//FIXME: that's ugly.
+		// okay, this is something I just gave up on.  I didn't know how to vectorize this.
+		// etaj should be:
+		// index		value
+		// 0			0
+		// 1			0
+		// 2			mass of p1
+		// 3			mass of p1 + mass of p2 OR mass of p2 + etaj[2]
+		// 4			mass of p1 + mass of p2 + mass of p3 OR mass of p3 + etaj[3]
+		// etc ...
+		// so I gave up on this and just did it scalar.
+		//
+		// Technically this only has to be done once since mass is constant.
 		for(size_t i = 2; i < nbod * 4; ++i)
 			etaj_s[i] = etaj_s[i-1] + mass_s[i-1];
 
@@ -212,6 +275,7 @@ namespace {
 			ah2.z[i] = z;
 		}
 
+		// set the sun and p1 values to zero
 		ah2.x[0] = _mm_and_ps(ah2.x[0], remove_sun_and_p1);
 		ah2.y[0] = _mm_and_ps(ah2.y[0], remove_sun_and_p1);
 		ah2.z[0] = _mm_and_ps(ah2.z[0], remove_sun_and_p1);
@@ -221,6 +285,17 @@ namespace {
 		float * __restrict azh2_s = (float*) ah2.z;
 
 		//FIXME: same problem.
+		// again, this is me giving up
+		// we want (for axh2):
+		// index		value
+		// 0			0
+		// 1			0
+		// 2			fac[2] * x[2]
+		// 3			fac[3] * x[3] + fac[2] * x[2] OR fac[3] * x[3] + axh2[2]
+		// 4			fac[4] * x[4] + fac[3] * x[3] + fac[2] * x[2] OR fac[4] * x[4] + axh2[3]
+		// so again, basically accumulating at each step.
+		// what I ended up doing is calculating every axh2 individually (aka axh2[N] = fac[N] * x[N]
+		// I then did a scalar for loop which did the summing from 2 to N
 		for(size_t i = 2; i < nbod * 4; ++i)
 		{
 			axh2_s[i] += axh2_s[i-1];
@@ -246,6 +321,7 @@ void xgetacch_sse(const size_t nbod, planets_sse_t & __restrict p) {
 	const __m128 zeroes = _mm_set1_ps(0.0f);
 	__m128 axh0 = zeroes, ayh0 = zeroes, azh0 = zeroes;
 
+	// get ir3 in both coordinates -- heliocentric and jacobian
 	xxx_getacch_ir3_sse(nbod, p.J, scratch.ir3j);
 	xxx_getacch_ir3_sse(nbod, p.H, scratch.ir3h);
 
@@ -261,9 +337,11 @@ void xgetacch_sse(const size_t nbod, planets_sse_t & __restrict p) {
 	xxx_getacch_ah2_sse(nbod, mass, scratch.ir3j, p.J, scratch.ah2, scratch.etaj);
 
 	// not touching this one with a 10 foot pole.
+	// yah, I'll explain this one in detail ... you will see my madness :)
 	getacch_ah3_sse(nbod, mass, p.H.x, p.H.y, p.H.z, scratch.ah3.x, scratch.ah3.y, scratch.ah3.z);
 
 	for(size_t i = 0; i < nbod; ++i) {
+		// can you explain the below?  This is good or bad?
 		/*
 		  obvious fix for re-ordering. perfect.
 		  well, ok, could be unrolled, interleaved, but that's for later if needed.
@@ -508,9 +586,17 @@ static void getacch_ah2_sse(const size_t nbod, const __m128 mass[NPLMAX], const 
 
 static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128 xh[NPLMAX], const __m128 yh[NPLMAX], const __m128 zh[NPLMAX], __m128 axh3[NPLMAX], __m128 ayh3[NPLMAX], __m128 azh3[NPLMAX])
 {
+
+	// okay, this is actually the most important function in terms of scaling -- its O(n^2)
+	// what we actually want to do is calculate the acceleration on pX due to every other planet (p of not X).
+
+	// the end resust is the axh3[N] is the sum of all of the accelerations of every other planet on pN.
+
 	__m128 zeroes = _mm_set1_ps(0.0f);
 	__m128 ones = _mm_set1_ps(1.0f);
 
+
+	// since we are going to accumulate  we first clear out the accelerations.
 	for(size_t i = 0; i < nbod; ++i)
 	{
 		axh3[i] = zeroes;
@@ -518,18 +604,170 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 		azh3[i] = zeroes;
 	}
 
+	// okay, again, the sun doesn't take part in this ... god, I should move it to out of the planet vector.  I don't know why I resist.
+	// so here we set the mass of the sun to zero which means the acceleration it causes on all of the planets is also zero.
 	const unsigned int MM_ALIGN16 mask[4] = { 0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
 	const __m128 remove_sun =_mm_load_ps((float*) mask);
 
 	mass[0] = _mm_and_ps(mass[0], remove_sun);
 
+		// so this is all confusing and stupid as fuck.  Let me copy / past the scalar code and comment on it.
+
+		/*
+
+			okay ... so for 8 planets we now have a matrix
+			i/j	0	1	2	3	4	5	6	7
+			0	0
+			1	X	0
+			2	X	X	0
+			3	X	X	X	0
+			4	X	X	X	X	0
+			5	X	X	X	X	X	0
+			6	X	X	X	X	X	X	0
+			7	X	X	X	X	X	X	X	0
+
+			So obviously we want the effect of p0 on p0 to be zero.  Repeat for every other planet.
+			
+			Now, we also calculate the effect of P1 on P2 AND P2 on P1 at the same time so the loop only does each pairing once.
+			So these are marked with X ... the loop skips them since j = i + 1.
+
+			Everything else we calculate.
+
+			// skip the sun ... i = 1
+			for(size_t i = 1; i < nbod - 1; ++i)
+			{
+				for(size_t j = i + 1; j < nbod; ++j)
+				{
+					// pretty easy, get the diff x, y, z
+					float dx = xh[j] - xh[i];
+					float dy = yh[j] - yh[i];
+					float dz = zh[j] - zh[i];
+
+					// again, easy, get the vector between them (well, squared)
+					float rji2 = dx*dx + dy*dy + dz*dz;
+					// inverse cube
+					float irij3 = 1.0f / (rji2 * sqrtf(rji2));
+
+					// so these values - faci, facj - are the effect of Pj on Pi (facj) and Pi on Pj (faci).
+					float faci = mass[i] * irij3;
+					float facj = mass[j] * irij3;
+
+					// we now want to accumulate these accelerations (faci/facj) in the respective arrays
+					axh3[j] -= faci*dx;
+					ayh3[j] -= faci*dy;
+					azh3[j] -= faci*dz;
+
+					axh3[i] += facj*dx;
+					ayh3[i] += facj*dy;
+					azh3[i] += facj*dz;
+				}
+			}
+
+			So, to me, there are two tricky parts when trying to vectorize this.
+
+			1) vec[N] also acts on itself.  I mean, vec[N] contains 4 planets (p0, p1, p2, p3).  This means we have to do interactions:
+
+				p0 <-> p1
+				p0 <-> p2
+				p0 <-> p3
+				p1 <-> p2
+				p1 <-> p3
+				p2 <-> p3
+
+			The way I accopmlished this is with rotating the vector by 1 and then working it on itself.  E.g.
+
+				vec				=> p0, p1, p2, p3
+				vec_rotate_1	=> p3, p0, p1, p2
+				results:
+								p0 <-> p3
+								p1 <-> p0
+								p2 <-> p1
+								p3 <-> p2
+
+				vec				=> p0, p1, p2, p3
+				vec_rotate_2	=> p2, p3, p0, p1
+				results:
+								p0 <-> p2
+								p1 <-> p3
+								p2 <-> p0
+								p3 <-> p1
+
+				vec				=> p0, p1, p2, p3
+				vec_rotate_2	=> p1, p2, p3, p0
+				results:
+								p0 <-> p1
+								p1 <-> p2
+								p2 <-> p3
+								p3 <-> p0
+
+			What I didn't realize at the time (and actually didn't fully realize until typing this out) was that doing it
+			this way results in calculating both p2 <-> p3 AND p3 <-> p2.  This is why I only accumulate the acceration and never do a subtraction.
+
+			This obviously also results in doing 12 interactions instead of doing 6.  I'm dumb.
+
+			2) vec[N] acts on vec[N+1] we only do some of the interactions instead of doing all of them.  E.g.
+
+				vec[N]			=> p0, p1, p2, p3
+				vec[N+1]		=> p4, p5, p6, p7
+				results:
+								p0 <-> p4
+								p1 <-> p5
+								p2 <-> p6
+								p3 <-> p7
+
+				We still need more.  Again, I solve this with rotations:
+
+				vec[N]			=> p0, p1, p2, p3
+				vec[N+1]_rotate	=> p7, p4, p5, p6
+				results:
+								p0 <-> p7
+								p1 <-> p4
+								p2 <-> p5
+								p3 <-> p6
+				
+				Again, repeat two more times until I end up getting: p0 <-> p4, p0 <-> p5, p0 <-> p6, p0 <-> p7, and the same for p1, p2, p3.
+
+
+			***
+
+			I have a feeling this way kind of sucks.  Another option would be to do something like
+
+				vec[N]			=> p0, p1, p2, p3
+				vec[N+1]		=> p4, p5, p6, p7
+
+				I could move p0 horizontally:
+
+				vec_p0			=> p0, p0, p0, p0
+				vec[N+1]		=> p4, p5, p6, p7
+
+				I then do N+2, N+3, etc until I'm done.  Finally, I horizontally sum the results to get ah3 of p0.
+
+				Repeat for p1, p2, p3.
+
+			This is by far the most important function, and it so far its implementation is terrible.
+
+			I'll now walk through the implementation :)
+		*/
+
+	// we are going to go through each planet vector (nbods)!
 	for(size_t i = 0; i < nbod; ++i)
 	{
+
+		// we make local copies of xh[i] as xhi (and others) because we are going to rotate them using SHUFFLE.
 		__m128 xacci = zeroes, yacci = zeroes, zacci = zeroes;
 		__m128 xhi = xh[i], yhi = yh[i], zhi = zh[i], massi = mass[i];
 
 		__m128 dx, dy, dz, rji2, irji3, facj, faci;
 
+
+		// okay, so this operation does the following accelerations:
+		//
+		// veci			=> p0, p1, p2, p3
+		// vecj			=> p4, p5, p6, p7
+		//
+		// results		=> p0 <-> p4, p1 <-> p5, p2 <-> p6, p3 <-> p7
+		//
+		// results of accelerations for veci are stored in xacci, yacci, zacci
 		for(size_t j = i + 1; j < nbod; ++j)
 		{
 			dx = _mm_sub_ps(xh[j], xhi);
@@ -551,6 +789,11 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 			zacci = _mm_add_ps(zacci, _mm_mul_ps(facj, dz));
 		}
 
+		// we now rotate damn near everyting for i
+		// acceleration results (xacci, yacci, zacci)
+		// the positions (xhi, yhi, zhi)
+		// the mass (massi)
+
 		xacci = _mm_shuffle_ps(xacci, xacci, _MM_SHUFFLE(0, 3, 2, 1));
 		yacci = _mm_shuffle_ps(yacci, yacci, _MM_SHUFFLE(0, 3, 2, 1));
 		zacci = _mm_shuffle_ps(zacci, zacci, _MM_SHUFFLE(0, 3, 2, 1));
@@ -559,6 +802,10 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 		__m128 yhi_rot1 = _mm_shuffle_ps(yh[i], yh[i], _MM_SHUFFLE(0, 3, 2, 1));
 		__m128 zhi_rot1 = _mm_shuffle_ps(zh[i], zh[i], _MM_SHUFFLE(0, 3, 2, 1));
 		__m128 mass_rot1 = _mm_shuffle_ps(mass[i], mass[i], _MM_SHUFFLE(0, 3, 2, 1));
+
+		// now we do the first inter vector i accelerations
+		// veci			=> p0, p1, p2, p3
+		// vec_rot1		=> p3, p0, p1, p2
 
 		dx = _mm_sub_ps(xhi_rot1, xh[i]);
 		dy = _mm_sub_ps(yhi_rot1, yh[i]);
@@ -578,6 +825,13 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 		zhi = zhi_rot1;
 		massi = mass_rot1;
 
+		// now we do veci and vecj again, but this time we use the rotated veci
+		//
+		// veci			=> p3, p0, p1, p2
+		// vecj			=> p4, p5, p6, p7
+		//
+		// results		=> p3 <-> p4, p0 <-> p5, p1 <-> p6, p2 <-> p7
+
 		for(size_t j = i + 1; j < nbod; ++j)
 		{
 			dx = _mm_sub_ps(xh[j], xhi);
@@ -599,6 +853,8 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 			zacci = _mm_add_ps(zacci, _mm_mul_ps(facj, dz));
 		}
 
+		// repeat the same rotations ...
+
 		xacci = _mm_shuffle_ps(xacci, xacci, _MM_SHUFFLE(0, 3, 2, 1));
 		yacci = _mm_shuffle_ps(yacci, yacci, _MM_SHUFFLE(0, 3, 2, 1));
 		zacci = _mm_shuffle_ps(zacci, zacci, _MM_SHUFFLE(0, 3, 2, 1));
@@ -607,6 +863,8 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 		__m128 yhi_rot2 = _mm_shuffle_ps(yh[i], yh[i], _MM_SHUFFLE(1, 0, 3, 2));
 		__m128 zhi_rot2 = _mm_shuffle_ps(zh[i], zh[i], _MM_SHUFFLE(1, 0, 3, 2));
 		__m128 mass_rot2 = _mm_shuffle_ps(mass[i], mass[i], _MM_SHUFFLE(1, 0, 3, 2));
+
+		// calculate the inter vector i accelerations
 
 		dx = _mm_sub_ps(xhi_rot2, xh[i]);
 		dy = _mm_sub_ps(yhi_rot2, yh[i]);
@@ -626,6 +884,13 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 		zhi = zhi_rot2;
 		massi = mass_rot2;
 
+		// doing veci rotated by 2 spots on vecj
+		//
+		// veci			=> p2, p3, p0, p1
+		// vecj			=> p4, p5, p6, p7
+		//
+		// results		=> p2 <-> p4, p3 <-> p5, p0 <-> p6, p1 <-> p7
+
 		for(size_t j = i + 1; j < nbod; ++j)
 		{
 			dx = _mm_sub_ps(xh[j], xhi);
@@ -646,6 +911,8 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 			yacci = _mm_add_ps(yacci, _mm_mul_ps(facj, dy));
 			zacci = _mm_add_ps(zacci, _mm_mul_ps(facj, dz));
 		}
+
+		// rotate again!  yay!
 
 		xacci = _mm_shuffle_ps(xacci, xacci, _MM_SHUFFLE(0, 3, 2, 1));
 		yacci = _mm_shuffle_ps(yacci, yacci, _MM_SHUFFLE(0, 3, 2, 1));
@@ -675,6 +942,12 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 		zhi = zhi_rot3;
 		massi = mass_rot3;
 
+		// last rotated veci on vecj
+		//
+		// veci			=> p1, p2, p3, p0
+		// vecj			=> p4, p5, p6, p7
+		//
+		// results		=> p1 <-> p4, p2 <-> p5, p3 <-> p6, p0 <-> p7
 		for(size_t j = i + 1; j < nbod; ++j)
 		{
 			dx = _mm_sub_ps(xh[j], xhi);
@@ -696,6 +969,16 @@ static void getacch_ah3_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128
 			zacci = _mm_add_ps(zacci, _mm_mul_ps(facj, dz));
 		}
 
+		// we shuffle only the accerations to get them back into position
+		//
+		// what I mean is that the acceleration for p0 has gone:
+		// rot 0		=> { p0,  x,  x,  x }
+		// rot 1		=> {  x, p0,  x,  x }
+		// rot 2		=> {  x,  x, p0,  x }
+		// rot 3		=> {  x,  x,  x, p0 }
+		// rot 4		=> { p0,  x,  x,  x }
+		//
+		// so now its back in the proper stop, we add it to the final acceleration vector
 		xacci = _mm_shuffle_ps(xacci, xacci, _MM_SHUFFLE(0, 3, 2, 1));
 		yacci = _mm_shuffle_ps(yacci, yacci, _MM_SHUFFLE(0, 3, 2, 1));
 		zacci = _mm_shuffle_ps(zacci, zacci, _MM_SHUFFLE(0, 3, 2, 1));
