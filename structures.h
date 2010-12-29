@@ -1,25 +1,22 @@
 #ifndef STRUCTURES_H_
 #define STRUCTURES_H_
 
+#include "specifics.h"
+#include <xmmintrin.h> // for __m128, pff.
 #include <cstdlib>
 
+/*
 const size_t NPLMAX = 64;
 const size_t NTPMAX = 8096;
 const size_t NPLMAX_V = 16;
+*/
 
-#if defined(__GNUC__)
-	#define __GCC__
-#elif defined(_MSC_VER)
-	#define __MSVC__
-#else
-	#error unsupported compiler.
-#endif
+enum {
+	NPLMAX   = 64,
+	NTPMAX   = 8192, // 8*1024 = 8192 foo, not 8096.
+	NPLMAX_V = 16,
+};
 
-#if defined __GCC__
-	#define MM_ALIGN16 __attribute__(aligned(16))
-#elif defined __MSVC__
-	#define MM_ALIGN16 __declspec(align(16))
-#endif
 
 struct SimulationParameters
 {
@@ -86,5 +83,95 @@ struct NBodies
 	}
 };
 
+
+/// round up to a power of 2.
+/// @note need a compile-time constant.
+template<size_t n, size_t denom> struct round_up_to_a_power_of_two {
+	enum {
+		value = denom > 1 ? ((n + denom - 1) & -denom)/denom : n,
+	};
+};
+
+/// storage for 3 coordinates/scalars in SoA form.
+/// @note not over-generalized to avoid having to refactor code too much (templating the arity of that 'vector').
+template<typename T, size_t NumScalars>
+	struct vec3_t {
+		enum { capacity = round_up_to_a_power_of_two<NumScalars, sizeof(T)/sizeof(float)>::value };
+		typedef T type;
+		T x[capacity];
+		T y[capacity];
+		T z[capacity];
+	};
+/// storage for 1 coordinate/scalar, to maintain symmetry with vec3_t
+/// @sa vec3_t
+template<typename T, size_t NumScalars>
+	struct vec1_t {
+		enum { capacity = round_up_to_a_power_of_two<NumScalars, sizeof(T)/sizeof(float)>::value };
+		typedef T type;
+		T m[capacity];
+		T operator[](size_t i) const { return m[i]; }
+		T &operator[](size_t i) { return m[i]; }
+	};
+
+/// still strongly typed storage for planet related stuff.
+template<typename T, size_t NumScalars>
+	struct storage_planets_t {
+		// using capitals to distinguish a bit.
+		//FIXME: figure out & reorganize by access.
+		vec1_t<T, NumScalars> MASS;
+		vec3_t<T, NumScalars> H, AH, J;
+		vec3_t<T, NumScalars> VJ, VH;
+		vec1_t<T, NumScalars> RPL;
+	};
+
+/// still strongly typed storage for particle related stuff.
+template<typename T, size_t NumScalars>
+	struct storage_particles_t {
+		// using capitals to distinguish a bit.
+		//FIXME: figure out & reorganize by access.
+		vec3_t<T, NumScalars> HT, VHT, AHT;
+	};
+
+/// degenerated storage for planets & particles.
+/// @attention unions do stink, but we're selecting early (keep fingers crossed and verify).
+template<size_t MaxPlanets, size_t MaxParticles>
+	union MM_ALIGN64 storage_t {
+		struct scalar_t {
+			storage_planets_t<float, MaxPlanets> planets;
+			storage_particles_t<float, MaxParticles> particles;
+		};
+		struct sse_t {
+			storage_planets_t<__m128, MaxPlanets> planets;
+			storage_particles_t<__m128, MaxParticles> particles;
+		};
+
+		scalar_t scalar;
+		sse_t sse;
+	};
+
+// now, some common types.
+typedef storage_planets_t<float,  NPLMAX> planets_scalar_t;
+typedef storage_planets_t<__m128, NPLMAX> planets_sse_t;
+typedef storage_particles_t<float,  NTPMAX> particles_scalar_t;
+typedef storage_particles_t<__m128, NTPMAX> particles_sse_t;
+typedef vec3_t<float, NPLMAX>  vec3_scalar_t;
+typedef vec3_t<__m128, NPLMAX> vec3_sse_t;
+
+
+
+
+
+// while we're at it, put that crap here.
+namespace {
+	/// automatically allocate with the proper alignment.
+	template<typename T> FA_MALLOC T *allocate() {
+		// ah fuck, i always forget alignof() is C++0X (and __alignof__ isn't portable at all).
+		return static_cast<T*>(_mm_malloc(sizeof(T), alignof(T)));
+	}
+
+	template<typename T> void deallocate(T *p) {
+		_mm_free(p);
+	}
+}
 
 #endif /* STRUCTURES_H_ */

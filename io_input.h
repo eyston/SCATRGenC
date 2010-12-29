@@ -9,4 +9,7 @@ void io_input_planets(const char *input_file_name, size_t &nbod, size_t &npl, fl
 
 void io_input_particles(const char *input_file_name, size_t &ntp, float xht[NTPMAX], float yht[NTPMAX], float zht[NTPMAX], float vxht[NTPMAX], float vyht[NTPMAX], float vzht[NTPMAX]);
 
+size_t xio_input_particles(const char * const input_file_name, particles_scalar_t &particles);
+void xio_input_planets(const char * const input_file_name, size_t &nbod, size_t &npl, planets_scalar_t &planets);
+
 #endif /* IO_INPUT_H_ */

@@ -1,8 +1,20 @@
-#include <stdio.h>
+#include "specifics.h"
+#include <cstdio> // use C++ headers, not C (when they exist).
 #include <xmmintrin.h>
-#include <math.h>
+#include <cmath>
 #include "structures.h"
 #include "getacch.h"
+
+//FIXME: bug.
+// sqrt is the libc version and is not overloaded, so it's really: double sqrt(double).
+// use: std::sqrt (C++, overloaded) or sqrtf.
+namespace {
+	float sqrt(float) {
+		// die.
+		__asm("int3");
+		return 0;
+	}
+}
 
 void getacch(const size_t nbod, const float* __restrict mass, const float* __restrict xj, const float* __restrict yj, const float* __restrict zj, 
 	const float* __restrict xh, const float* __restrict yh, const float* __restrict zh, float* __restrict axh, float* __restrict ayh, float* __restrict azh)
@@ -56,7 +68,7 @@ static void getacch_ir3(const size_t nbod, const size_t istart, const float* __r
 	for(size_t i = istart; i < nbod; ++i)
 	{
 		float r2 = x[i]*x[i] + y[i]*y[i] + z[i]*z[i];
-		float ir = 1.0f / sqrt(r2);
+		float ir = 1.0f / sqrtf(r2);
 		ir3[i] = ir / r2;
 	}
 }
@@ -145,7 +157,7 @@ static void getacch_ah3(const size_t nbod, const float* __restrict mass, const f
 			float dz = zh[j] - zh[i];
 			float rji2 = dx*dx + dy*dy + dz*dz;
 
-			float irij3 = 1.0f / (rji2 * sqrt(rji2));
+			float irij3 = 1.0f / (rji2 * sqrtf(rji2));
 			float faci = mass[i] * irij3;
 			float facj = mass[j] * irij3;
 
@@ -183,7 +195,7 @@ void getacch_ah3_tp(const size_t nbod, const size_t ntp, const float* __restrict
 			float dz = zht[j] - zh[i];
 			rji2 = dx*dx + dy*dy + dz*dz;
 
-			irij3 = 1.0f / (rji2 * sqrt(rji2));
+			irij3 = 1.0f / (rji2 * sqrtf(rji2));
 			fac = mass[i] * irij3;
 
 			axh3[j] = axh3[j] - fac * dx;
@@ -192,7 +204,7 @@ void getacch_ah3_tp(const size_t nbod, const size_t ntp, const float* __restrict
 		}
 
 		rji2 = xht[j]*xht[j] + yht[j]*yht[j] + zht[j]*zht[j];
-		irij3 = 1.0f / (rji2 * sqrt(rji2));
+		irij3 = 1.0f / (rji2 * sqrtf(rji2));
 
 		fac = mcent*irij3;
 		axh3[j] = axh3[j] + fac * xht[j];
@@ -228,7 +240,6 @@ void getacch_tp(const size_t nbod, const size_t npl, const size_t ntp, const flo
 	for(size_t i = 0; i < ntp; ++i)
 	{
 		axht[i] = axh0 + axh3[i];
-		//printf("%E, %E, %E\n", axh3[i], axh0, axht[i]);
 		ayht[i] = ayh0 + ayh3[i];
 		azht[i] = azh0 + azh3[i];
 	}

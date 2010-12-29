@@ -100,3 +100,60 @@ void io_input_particles(const char *input_file_name, size_t &ntp, float xht[NTPM
 
 	fclose(input_file);
 }
+
+size_t xio_input_particles(const char * const input_file_name, particles_scalar_t &particles) {
+	enum { length = 256 };
+	size_t ntp = 0;
+	if (FILE *input_file = fopen(input_file_name, "r")) {
+		char line[length];
+		fgets(line, length, input_file);
+		sscanf(line, "%i", &ntp);
+		printf("%i\n", ntp);
+
+		for(size_t i = 0; i < ntp; i++) {
+			fgets(line, length, input_file);
+			sscanf(line, "%f %f %f", &particles.HT.x[i], &particles.HT.y[i], &particles.HT.z[i]);
+			fgets(line, length, input_file);
+			sscanf(line, "%f %f %f", &particles.VHT.x[i], &particles.VHT.y[i], &particles.VHT.z[i]);
+
+			fgets(line, length, input_file);
+			fgets(line, length, input_file);
+			fgets(line, length, input_file);
+			fgets(line, length, input_file);
+		}
+
+		fclose(input_file);
+	}
+	return ntp;
+}
+
+void xio_input_planets(const char * const input_file_name, size_t &nbod, size_t &npl, planets_scalar_t &planets) {
+	enum { length = 256 };
+	nbod = 0;
+	npl = 0;
+	if (FILE *input_file = fopen(input_file_name, "r")) {
+		char line[length];
+		fgets(line, length, input_file);
+		sscanf(line, "%i %i\n", &nbod, &npl);
+		printf("%i, %i\n", nbod, npl);
+
+		// WTF?
+		fgets(line, length, input_file);
+		sscanf(line, "%f\n", &planets.MASS[0]);
+		//FIXME: RPL[0] is never initialized or what?
+
+		fgets(line, length, input_file);
+		sscanf(line, "%f %f %f\n", &planets.H.x[0], &planets.H.y[0], &planets.H.z[0]);
+
+		fgets(line, length, input_file);
+		sscanf(line, "%f %f %f\n", &planets.VH.x[0], &planets.VH.y[0], &planets.VH.z[0]);
+
+		for(size_t i=1; i < nbod; i++)
+		{
+			fscanf(input_file, "%f %f\n", &planets.MASS[i], &planets.RPL[i]);
+			fscanf(input_file, "%f %f %f\n", &planets.H.x[i], &planets.H.y[i], &planets.H.z[i]);
+			fscanf(input_file, "%f %f %f\n", &planets.VH.x[i], &planets.VH.y[i], &planets.VH.z[i]);
+		}
+		fclose(input_file);
+	}
+}
