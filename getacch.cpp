@@ -183,6 +183,14 @@ void getacch_ah3_tp(const size_t nbod, const size_t ntp, const float* __restrict
 	}
 
 
+	// okay!
+	// so all particles, 0 to ntp, are massless.  this means particle X DOES NOT affect particle Y.
+	// The only thing that affects the particles are the planets (which have mass).
+
+	// so this loop goes through each particle, 0 to ntp.  it then loops over every mass body, from the sun, to p1, to pN (nbod).
+	// we then calculate the force from the planet to the particle.
+	// so for 1000 particles and 4 planets we do 4000 interactions.
+
 	//#pragma omp parallel for
 	for(size_t j = 0; j < ntp; ++j)
 	{
@@ -190,19 +198,29 @@ void getacch_ah3_tp(const size_t nbod, const size_t ntp, const float* __restrict
 
 		for(size_t i = 0; i < nbod; ++i)
 		{
+			// okay, so the first thing is to get the vector from the particle to the planet
 			float dx = xht[j] - xh[i];
 			float dy = yht[j] - yh[i];
 			float dz = zht[j] - zh[i];
 			rji2 = dx*dx + dy*dy + dz*dz;
 
+			// now we do the inverse of the distance cubed.
 			irij3 = 1.0f / (rji2 * sqrtf(rji2));
+
+			// finally we take the mass of the planet times the inverse of the radius cubed (i.e. the acceleration from the planet falls off at 1/r^3).
 			fac = mass[i] * irij3;
 
+			// so then the acceleration is then the 'fac' times the vector from the planet to the particle.
+			// I'm assuing we could do an addition if we just reversed the vector (xh[i] - xht[j])?  Does this matter?
 			axh3[j] = axh3[j] - fac * dx;
 			ayh3[j] = ayh3[j] - fac * dy;
 			azh3[j] = azh3[j] - fac * dz;
 		}
 
+		// this part is to remove the suns impact on all of this.
+		// if we make the above i = 1 to nbod then we could comment it out.
+		//
+		// its actually slightly more complicated.  I'll explain after code.
 		rji2 = xht[j]*xht[j] + yht[j]*yht[j] + zht[j]*zht[j];
 		irij3 = 1.0f / (rji2 * sqrtf(rji2));
 
@@ -210,6 +228,16 @@ void getacch_ah3_tp(const size_t nbod, const size_t ntp, const float* __restrict
 		axh3[j] = axh3[j] + fac * xht[j];
 		ayh3[j] = ayh3[j] + fac * yht[j];
 		azh3[j] = azh3[j] + fac * zht[j];
+
+		// so this function, in fortran, is used two ways: heliocentric and barycentric.
+		// heliocentric means the sun is (0, 0, 0) and the particle is orbiting the sun.
+		// this is the case for when the particle is within a certain distance (say 300 AU) from the sun.
+		//
+		// if the particle is further away from the sun then the calculation is done in barycentric coordinates.
+		// this means (0, 0, 0) is actually the center of mass of the solar system.
+		//
+		// the way I'm using this code so far is ONLY heliocentric mode which means mcent = mass of sun.
+		// this isn't the case in barycentric.
 	}
 }
 
