@@ -3,6 +3,7 @@ SRCDIR :=$(TOPDIR)
 OBJDIR :=$(TOPDIR)
 TESTSRCDIR :=$(TOPDIR)
 GTESTINCLUDE := $(TOPDIR)
+GTESTLIB := $(TOPDIR)/gtest_main.a
 
 # overkill, that's when you want different dirs for source, objects & binaries but you're a pig ;)
 SRCS +=$(SRCDIR)/getacch.cpp
@@ -88,7 +89,7 @@ $(OBJDIR)/scatr$(BINSUFFIX): $(OBJS)
 
 $(OBJDIR)/tests$(BINSUFFIX): $(OBJS) $(TESTOBJS)
 	@echo "[LINK] $@"
-	@$(LINK.cc) -I$(GTESTINCLUDE) $(OBJS) $(TESTOBJS) gtest_main.a -o $@
+	@$(LINK.cc) -I$(GTESTINCLUDE) $(OBJS) $(TESTOBJS) $(GTESTLIB) -o $@
 	
 $(OBJDIR)/old_scatr$(BINSUFFIX): CXXFLAGS :=-pipe -g -fopenmp -O3 -march=native
 $(OBJDIR)/old_scatr$(BINSUFFIX): $(OBJS)
