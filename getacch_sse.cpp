@@ -373,9 +373,9 @@ void xgetacch_sse(const size_t nbod, planets_sse_t & __restrict p) {
 		__m128 y = _mm_add_ps(ayh0, _mm_add_ps(scratch.ah1.y[i], _mm_add_ps(scratch.ah2.y[i], scratch.ah3.y[i])));
 		__m128 z = _mm_add_ps(azh0, _mm_add_ps(scratch.ah1.z[i], _mm_add_ps(scratch.ah2.z[i], scratch.ah3.z[i])));
 		// store.
-		p.H.x[i] = x;
-		p.H.y[i] = y;
-		p.H.z[i] = z;
+		p.AH.x[i] = x;
+		p.AH.y[i] = y;
+		p.AH.z[i] = z;
 	}
 
 	deallocate(&scratch);
