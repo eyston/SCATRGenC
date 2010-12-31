@@ -7,8 +7,11 @@ SRCS +=$(SRCDIR)/getacch.cpp
 SRCS +=$(SRCDIR)/coord.cpp
 SRCS +=$(SRCDIR)/io_input.cpp
 SRCS +=$(SRCDIR)/getacch_sse.cpp
+SRCS +=$(SRCDIR)/acceleration_tests.cpp
 
 OBJS :=$(addprefix $(OBJDIR)/, $(patsubst %.cpp, %.o, $(notdir $(SRCS))))
+
+GTESTINCLUDE := $(SRCDIR)
 
 # check the OS.
 BINSUFFIX := .exe
@@ -73,12 +76,16 @@ bench: $(OBJDIR)/scatr$(BINSUFFIX)
 # just so we can avoid being spammed
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	@echo "[CXX]  $<"
-	@$(COMPILE.cc) $< -o $@
+	@$(COMPILE.cc) -I. $< -o $@
 
 $(OBJDIR)/scatr$(BINSUFFIX): $(OBJS)
 	@echo "[LINK] $@"
 	@$(LINK.cc) $(OBJS) main.cpp -o $@
 
+$(OBJDIR)/tests$(BINSUFFIX): $(OBJS)
+	@echo "[LINK] $@"
+	@$(LINK.cc) -I$(GTESTINCLUDE) $(OBJS) gtest_main.a -o $@
+	
 $(OBJDIR)/old_scatr$(BINSUFFIX): CXXFLAGS :=-pipe -g -fopenmp -O3 -march=native
 $(OBJDIR)/old_scatr$(BINSUFFIX): $(OBJS)
 	@echo "[LINK] $@"
