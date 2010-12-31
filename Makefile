@@ -1,17 +1,20 @@
 TOPDIR :=.
 SRCDIR :=$(TOPDIR)
 OBJDIR :=$(TOPDIR)
+TESTSRCDIR :=$(TOPDIR)
+GTESTINCLUDE := $(TOPDIR)
 
 # overkill, that's when you want different dirs for source, objects & binaries but you're a pig ;)
 SRCS +=$(SRCDIR)/getacch.cpp
 SRCS +=$(SRCDIR)/coord.cpp
 SRCS +=$(SRCDIR)/io_input.cpp
 SRCS +=$(SRCDIR)/getacch_sse.cpp
-SRCS +=$(SRCDIR)/acceleration_tests.cpp
+
+TESTSRCS +=$(TESTSRCDIR)/acceleration_tests.cpp
 
 OBJS :=$(addprefix $(OBJDIR)/, $(patsubst %.cpp, %.o, $(notdir $(SRCS))))
 
-GTESTINCLUDE := $(SRCDIR)
+TESTOBJS += $(addprefix $(OBJDIR)/, $(patsubst %.cpp, %.o, $(notdir $(TESTSRCS))))
 
 # check the OS.
 BINSUFFIX := .exe
@@ -57,6 +60,7 @@ all: $(TARGETS)
 
 clean:
 	-@rm *.d $(OBJS) $(TARGETS) 2>/dev/null
+	-@rm *.d $(TESTOBJS) $(TARGETS) 2>/dev/null
 
 dumpflags:
 	@echo "CXXFLAGS $(CXXFLAGS)"
@@ -82,9 +86,9 @@ $(OBJDIR)/scatr$(BINSUFFIX): $(OBJS)
 	@echo "[LINK] $@"
 	@$(LINK.cc) $(OBJS) main.cpp -o $@
 
-$(OBJDIR)/tests$(BINSUFFIX): $(OBJS)
+$(OBJDIR)/tests$(BINSUFFIX): $(OBJS) $(TESTOBJS)
 	@echo "[LINK] $@"
-	@$(LINK.cc) -I$(GTESTINCLUDE) $(OBJS) gtest_main.a -o $@
+	@$(LINK.cc) -I$(GTESTINCLUDE) $(OBJS) $(TESTOBJS) gtest_main.a -o $@
 	
 $(OBJDIR)/old_scatr$(BINSUFFIX): CXXFLAGS :=-pipe -g -fopenmp -O3 -march=native
 $(OBJDIR)/old_scatr$(BINSUFFIX): $(OBJS)
