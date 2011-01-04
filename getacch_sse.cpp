@@ -1,7 +1,13 @@
 #include "specifics.h"
 #include <cstdio> // use C++ headers, not C (when they exist).
+#include <cmath>
+#include <cassert>
+
 #include <xmmintrin.h>
-#include <math.h>
+#ifdef __SSE3__ //FIXME: GCC specific, do something with the MSVC build system.
+	#include <immintrin.h>
+#endif
+
 #include "structures.h"
 #include "getacch_sse.h"
 
@@ -39,14 +45,159 @@ struct scratchpad_t {
 	ah_t ah3;
 };
 
-// typedef storage_planets_sse_t<__m128, NPLMAX> planets_sse_t;
-// typedef vec3_t<__m128, NPLMAX> vec3_sse_t;
 
 namespace {
+	enum {
+		use_v4sf =
+			// false,
+			true,
+	};
+	/// a few cachelines of constants.
+	/// ugliness, i embrace you (could be made more elegant but why bother).
+	union MM_ALIGN64 cst_t {
+		enum { N = 2*4 };
+		int i[N][4]; // first member, for init.
+		struct {
+			// first line.
+			__m128 mask_all;
+			__m128 mask_sign;
+			__m128 mask_lo64;
+			__m128 mask_hi64;
+			// second.
+			__m128 ones;
+		};
+	} const cst = {
+		#define CST4(x) { x, x, x, x }
+		{
+			CST4(0xFFFFFFFF), // all
+			CST4(0x80000000), // sign bit
+			{ 0xFFFFFFFF, 0xFFFFFFFF, 0, 0 }, // lo
+			{ 0, 0, 0xFFFFFFFF, 0xFFFFFFFF }, // hi
+
+			CST4(0x3F800000), // 1.f
+		}
+		#undef CST4
+	};
+
+	/// brain-dead SSE wrapper, for internal use only.
+	/// possibly problematic idioms are avoided; still, caution is advised.
+	struct v4sf_t {
+		#define LFA __attribute__((const, always_inline))
+
+		// naked vector type for gcc.
+		typedef float type __attribute__ ((__vector_size__ (16)));
+		// for easy refactoring.
+		typedef v4sf_t return_type;
+		type m;
+
+		/// implicit conversion.
+		v4sf_t(type x) : m(x) {}
+		v4sf_t(float a, float b, float c, float d) : m(make(a,b,c,d)) {}
+		/// broadcast (most useful default).
+		explicit v4sf_t(float f) : m(make(f, f, f, f)) {}
+		/// extremely dubious but convenient shorthand.
+		operator __m128() const { return m; }
+
+		// could use our sign mask.
+		LFA friend return_type operator-(v4sf_t rhs) { return -rhs.m; }
+		LFA friend return_type operator+(v4sf_t lhs, v4sf_t rhs) { return lhs.m + rhs.m; }
+		LFA friend return_type operator-(v4sf_t lhs, v4sf_t rhs) { return lhs.m - rhs.m; }
+		LFA friend return_type operator*(v4sf_t lhs, v4sf_t rhs) { return lhs.m * rhs.m; }
+		LFA friend return_type operator/(v4sf_t lhs, v4sf_t rhs) { return lhs.m / rhs.m; }
+		// gcc doesn't like bitops on float ;)
+		LFA friend return_type operator&(v4sf_t lhs, v4sf_t rhs) {
+			return return_type(_mm_and_ps(lhs.m, rhs.m));
+		}
+		LFA friend return_type operator|(v4sf_t lhs, v4sf_t rhs) {
+			return return_type(_mm_or_ps(lhs.m, rhs.m));
+		}
+		/// ~lhs & rhs.
+		LFA friend return_type andnot(v4sf_t lhs, v4sf_t rhs) {
+			return return_type(_mm_andnot_ps(lhs.m, rhs.m));
+		}
+
+		/// sqrt(@a rhs), full precision.
+		LFA friend return_type sqrt(v4sf_t rhs) { return return_type(_mm_sqrt_ps(rhs.m)); }
+		/// 1/@a rhs, full precision.
+		LFA friend return_type rcp(v4sf_t rhs) { return return_type(_mm_div_ps(make(1, 1, 1, 1), rhs.m)); }
+		/// 1/sqrt(@a rhs), full precision.
+		LFA friend return_type rsqrt(v4sf_t rhs) { return rcp(sqrt(rhs)); }
+
+		/// one operand shuffle, could use pshufd.
+		template<int a, int b, int c, int d>
+			LFA friend return_type shuffle(v4sf_t x) {
+				return return_type(_mm_shuffle_ps(x.m, x.m, _MM_SHUFFLE(a,b,c,d)));
+			}
+		/// 2 operands shuffle.
+		template<int a, int b, int c, int d>
+			LFA friend return_type shuffle(v4sf_t x, v4sf_t y) {
+				return return_type(_mm_shuffle_ps(x.m, y.m, _MM_SHUFFLE(a,b,c,d)));
+			}
+
+		/// concatenate 2 vectors, shift some bytes to the right , return LSB.
+		template<int shift8>
+			LFA friend return_type realign(v4sf_t lhs, v4sf_t rhs) {
+				#ifdef __SSSE3__
+					return _mm_castsi128_ps(
+								_mm_alignr_epi8(
+									_mm_castps_si128(lhs.m),
+									_mm_castps_si128(rhs.m),
+									shift8));
+				#else
+					#error too lazy to re-implement palignr by hand.
+				#endif
+			}
+
+		/// extract a scalar.
+		///FIXME: non-portable land, GCCism.
+		template<int idx>
+			LFA friend float extract_float(v4sf_t rhs) {
+				#ifdef __GCC__
+					return __builtin_ia32_vec_ext_v4sf(rhs.m, idx);
+				#else
+					#error GCCism in need of translation.
+				#endif
+			}
+
+		/// don't care.
+		/// @see http://ompf.org/forum/viewtopic.php?f=11&t=1701
+		LFA friend float horizontal_add(v4sf_t rhs) {
+			#ifdef __SSSE3__
+				__m128 tmp = _mm_hadd_ps(rhs.m, rhs.m);
+				return extract_float<0>(_mm_hadd_ps(tmp, tmp));
+			#else
+				float MM_ALIGN16 m[4];
+				_mm_store_ps(m, rhs.m);
+				return m[0] + m[1] + m[2] + m[3];
+			#endif
+		}
+		///
+		/// logical right shift; shifts the whole vector to the right, introducing 0.
+		/// @attention can only shift in multiples of 8 bits.
+		template<int bits>
+			LFA friend v4sf_t shr128(v4sf_t rhs) {
+				return _mm_castsi128_ps(
+							_mm_srli_si128(_mm_castps_si128(rhs.m), bits/8));
+			}
+		/// logical left shift; shifts the whole vector to the left, introducing 0.
+		/// @attention can only shift in multiples of 8 bits.
+		template<int bits>
+			LFA friend v4sf_t shl128(v4sf_t rhs) {
+				return _mm_castsi128_ps(
+							_mm_slli_si128(_mm_castps_si128(rhs.m), bits/8));
+			}
+
+		/// abuse gcc vector extension.
+		static LFA type make(float a, float b, float c, float d) { return ((type) {a,b,c,d}); }
+
+		#undef LFA
+	};
+
 	//FIXME: not inlined, perhaps we're hitting a limit of some sort (also there's 2 calls, that's a hint).
 	//       investigate (for now, kludge).
 	SCREWYOU
-	FINLINE
+	// FINLINE
+	__attribute((used, noinline, nonnull))
 	// void xxx_getacch_ir3_sse(const size_t nbod, const vec3_sse_t &v, __m128 ir3[NPLMAX]) {
 	void xxx_getacch_ir3_sse(const size_t nbod, const vec3_sse_t &v, __m128 * __restrict const ir3) {
 		// in case nbod's tests don't propagate up there.
@@ -58,19 +209,28 @@ namespace {
 		// in both cases the suns position is (0, 0, 0) so its ir3 ends up as NaN (1 / 0).
 		// This makes me think its best to pull the sun out of this vector and leave it as just planets.
 		// I'll point out other places that make me think this too.
+		if (use_v4sf)
+			// there's definitely a shortcut here
+			// btw, you know, gcc cheats in the scalar version, using reciprocals ;)
+			for(size_t i = 0; i < nbod; ++i) {
+				v4sf_t x = v.x[i], y = v.y[i], z = v.z[i];
+				v4sf_t r2 = x*x + y*y + z*z;
+				ir3[i] = rcp(sqrt(r2)*r2);
+			}
+		else {
+			const __m128 ones = _mm_set1_ps(1.0f);
 
-		const __m128 ones = _mm_set1_ps(1.0f);
+			for(size_t i = 0; i < nbod; ++i) {
+				__m128 x2 = _mm_mul_ps(v.x[i], v.x[i]);
+				__m128 y2 = _mm_mul_ps(v.y[i], v.y[i]);
+				__m128 z2 = _mm_mul_ps(v.z[i], v.z[i]);
 
-		for(size_t i = 0; i < nbod; ++i) {
-			__m128 x2 = _mm_mul_ps(v.x[i], v.x[i]);
-			__m128 y2 = _mm_mul_ps(v.y[i], v.y[i]);
-			__m128 z2 = _mm_mul_ps(v.z[i], v.z[i]);
+				__m128 r2 = _mm_add_ps(x2, _mm_add_ps(z2, y2));
 
-			__m128 r2 = _mm_add_ps(x2, _mm_add_ps(z2, y2));
-
-			__m128 r = _mm_sqrt_ps(r2);
-			__m128 r3 = _mm_mul_ps(r2, r);
-			ir3[i] = _mm_div_ps(ones, r3);
+				__m128 r = _mm_sqrt_ps(r2);
+				__m128 r3 = _mm_mul_ps(r2, r);
+				ir3[i] = _mm_div_ps(ones, r3);
+			}
 		}
 	}
 
@@ -84,6 +244,25 @@ namespace {
 		// in case nbod's tests don't propagate up there.
 		if (unlikely(nbod < 1))
 			return;
+
+		if (use_v4sf) {
+			// only act on local variables.
+			// see the explanation for masking the sun below.
+			v4sf_t fac = v4sf_t(mass[0]*ir3h[0]) & cst.mask_hi64;
+			v4sf_t x(fac*h.x[0]), y(fac*h.y[0]), z(fac*h.z[0]);
+
+			for(size_t i = 1; i < nbod; ++i) {
+				fac = mass[i] * ir3h[i];
+				x = x + fac*h.x[i];
+				y = y + fac*h.y[i];
+				z = z + fac*h.z[i];
+			}
+
+			axh0 = -v4sf_t(horizontal_add(x)); // implicit broadcast.
+			ayh0 = -v4sf_t(horizontal_add(y));
+			azh0 = -v4sf_t(horizontal_add(z));
+			return;
+		}
 
 		// okay, so the whole idea of all of these functions (ah0, ah1, ah2, ah3) is to calculate different portions of the planets acceleration due to other planets
 		// So if we have 4 planets and the sun, then p1, p2, p3, p4 all acceleration each other due to newtons law of gravity F = ma = (Gm1m2/r^2).
@@ -193,6 +372,22 @@ namespace {
 		if (unlikely(nbod < 1))
 			return;
 
+		if (use_v4sf) {
+			v4sf_t sun_mass = shuffle<0, 0, 0, 0>(mass[0]); // why bother.
+			for(size_t i = 0; i < nbod; ++i) {
+				// just not to cheat too much, i force an implicit promotion to v4sf_t.
+				v4sf_t helio(ir3h[i]), jacob(ir3j[i]);
+				v4sf_t diff_x = (jacob*j.x[i] - helio*h.x[i])*sun_mass;
+				v4sf_t diff_y = (jacob*j.y[i] - helio*h.y[i])*sun_mass;
+				v4sf_t diff_z = (jacob*j.z[i] - helio*h.z[i])*sun_mass;
+
+				ah1.x[i] = diff_x;
+				ah1.y[i] = diff_y;
+				ah1.z[i] = diff_z;
+			}
+			return; // skip.
+		}
+
 		// in the scalar version we use the mass of the sun for all of our calculations
 		// so here we pull that out and a create a mass_sun vector ... again, another hint to make the sun its own vector instead of with the planets.
 		float *mass_f = (float*) mass;
@@ -225,6 +420,31 @@ namespace {
 		}
 	}
 
+	/// a braindead running sum, shifting in new values from { val0, val1 }.
+	FINLINE
+	v4sf_t do_partial_summation(v4sf_t acc, v4sf_t val0, v4sf_t val1) {
+		// new values, shifted in.
+		v4sf_t val = realign<4*3>(val1, val0);
+		// broadcast the last scalar,
+		// do partial horizontal summation (the braindead way).
+		v4sf_t r =
+		        shuffle<3,3,3,3>(acc)
+				+ val
+				+ shl128<32*1>(val)
+				+ shl128<32*2>(val)
+				+ shl128<32*3>(val);
+		return r;
+	}
+
+	/// running sum against an array.
+	void do_running_sum(size_t nbod_v, __m128 * const p) {
+		assert(nbod_v > 0 && "no way");
+		float *q = (float *) p;
+		q[0] = 0; // rig sun and first planet.
+		q[1] = 0;
+		for (size_t i=2; i<nbod_v*4; ++i)
+			q[i] += q[i-1];
+	}
 
 	SCREWYOU
 	void xxx_getacch_ah2_sse(const size_t nbod,
@@ -232,12 +452,42 @@ namespace {
 	                         const __m128 ir3j[NPLMAX],
 	                         const vec3_sse_t &j,
 	                         vec3_sse_t &ah2,
-	                         const __m128 etaj[NPLMAX])
+	                         __m128 etaj[NPLMAX])
 	{
 		// in case nbod's tests don't propagate up there.
 		// note: it will be tested at least once for the first loop here.
 		if (unlikely(nbod < 1))
 			return;
+
+		if (use_v4sf) {
+			// i doubt this is worth the hassle; to truly be
+			// competitive we'd have to be nicer (and not shift like there's no tomorrow).
+			// plus there's never that many planets so just forget about it.
+			//
+			// skip first iteration. don't bother.
+			v4sf_t zero(0, 0, 0, 0);
+			v4sf_t acc(do_partial_summation(zero, zero, mass[0]));
+			etaj[0] = acc;
+			for (size_t i=1; i<nbod; ++i)
+				etaj[i] = do_partial_summation(acc, mass[i-1], mass[i]);
+
+			v4sf_t sun_mass = shuffle<0, 0, 0, 0>(mass[0]); // why bother.
+			for (size_t i=0; i<nbod; ++i) {
+				v4sf_t factor = (sun_mass*mass[i]*ir3j[i])/etaj[i];
+				v4sf_t x = j.x[i]*factor, y = j.y[i]*factor, z = j.z[i]*factor;
+				ah2.x[i] = x;
+				ah2.y[i] = y;
+				ah2.z[i] = z;
+			}
+			// again, summation. not bothering.
+			// yet, i wonder how we could make that more palatable to the compiler.
+			// perhaps look at an autovectorizable FIR implementation.
+			do_running_sum(nbod, ah2.x);
+			do_running_sum(nbod, ah2.y);
+			do_running_sum(nbod, ah2.z);
+
+			return; // skip.
+		}
 
 		float * __restrict const etaj_s = (float*) etaj;
 		const float *mass_s = (const float*) mass;
@@ -303,8 +553,6 @@ namespace {
 			azh2_s[i] += azh2_s[i-1];
 		}
 	}
-
-
 }
 
 ///FIXME: should better distinguish what's written/updated and what's not. inspect the flow ASAP.
@@ -340,43 +588,60 @@ void xgetacch_sse(const size_t nbod, planets_sse_t & __restrict p) {
 	// yah, I'll explain this one in detail ... you will see my madness :)
 	getacch_ah3_sse(nbod, mass, p.H.x, p.H.y, p.H.z, scratch.ah3.x, scratch.ah3.y, scratch.ah3.z);
 
-	for(size_t i = 0; i < nbod; ++i) {
-		// can you explain the below?  This is good or bad?
-		/*
-		  obvious fix for re-ordering. perfect.
-		  well, ok, could be unrolled, interleaved, but that's for later if needed.
-		  opcodes are a tad too large too ;)
+	if (use_v4sf)
+		for(size_t i = 0; i < nbod; ++i) {
+			v4sf_t x = v4sf_t(axh0) + scratch.ah1.x[i] + scratch.ah2.x[i] + scratch.ah3.x[i];
+			v4sf_t y = v4sf_t(ayh0) + scratch.ah1.y[i] + scratch.ah2.y[i] + scratch.ah3.y[i];
+			v4sf_t z = v4sf_t(azh0) + scratch.ah1.z[i] + scratch.ah2.z[i] + scratch.ah3.z[i];
+			p.AH.x[i] = x;
+			p.AH.y[i] = y;
+			p.AH.z[i] = z;
+		}
+	else
+		for(size_t i = 0; i < nbod; ++i) {
+			// can you explain the below?  This is good or bad?
+			//answer: it's as good as can be without heavier surgery.
+			// notice how loads happen first, mixed with computations, and then store. no undue reloads.
+			// to go beyond that, we'd want to have fewer loopings, interleave loads & stores so as to maximize
+			// throughoutput (and reduce the opcode size, or risk hitting a decoding bottleneck if not already there).
+			// look at the size of the first few instructions: 7 bytes (because of encoded offset mostly); if decoding
+			// is a bottleneck there, we'd have to trade for more complex addressing modes.
+			// but unrolling & interleaving lead to really ugly code, so it must be worth it (it's not here).
+			/*
+			  obvious fix for re-ordering. perfect.
+			  well, ok, could be unrolled, interleaved, but that's for later if needed.
+			  opcodes are a tad too large too ;)
 
-		  402690:       0f 28 90 00 05 00 00    movaps 0x500(%rax),%xmm2
-		  402697:       0f 28 88 00 06 00 00    movaps 0x600(%rax),%xmm1
-		  40269e:       0f 58 90 00 08 00 00    addps  0x800(%rax),%xmm2
-		  4026a5:       0f 28 80 00 07 00 00    movaps 0x700(%rax),%xmm0
-		  4026ac:       0f 58 88 00 09 00 00    addps  0x900(%rax),%xmm1
-		  4026b3:       0f 58 80 00 0a 00 00    addps  0xa00(%rax),%xmm0
-		  4026ba:       0f 58 90 00 02 00 00    addps  0x200(%rax),%xmm2
-		  4026c1:       0f 58 88 00 03 00 00    addps  0x300(%rax),%xmm1
-		  4026c8:       0f 58 80 00 04 00 00    addps  0x400(%rax),%xmm0
-		  4026cf:       48 83 c0 10             add    $0x10,%rax
-		  4026d3:       0f 58 d5                addps  %xmm5,%xmm2
-		  4026d6:       0f 58 cc                addps  %xmm4,%xmm1
-		  4026d9:       0f 58 c3                addps  %xmm3,%xmm0
-		  4026dc:       41 0f 29 54 15 00       movaps %xmm2,0x0(%r13,%rdx,1)
-		  4026e2:       0f 29 4c 15 00          movaps %xmm1,0x0(%rbp,%rdx,1)
-		  4026e7:       0f 29 04 13             movaps %xmm0,(%rbx,%rdx,1)
-		  4026eb:       48 83 c2 10             add    $0x10,%rdx
-		  4026ef:       4c 39 f2                cmp    %r14,%rdx
-		  4026f2:       75 9c                   jne    402690 <_Z12xgetacch_ssemPDv4_fPKS_S2_S2_S2_S2_S2_S0_S0_S0_+0x240>
+			  402690:       0f 28 90 00 05 00 00    movaps 0x500(%rax),%xmm2
+			  402697:       0f 28 88 00 06 00 00    movaps 0x600(%rax),%xmm1
+			  40269e:       0f 58 90 00 08 00 00    addps  0x800(%rax),%xmm2
+			  4026a5:       0f 28 80 00 07 00 00    movaps 0x700(%rax),%xmm0
+			  4026ac:       0f 58 88 00 09 00 00    addps  0x900(%rax),%xmm1
+			  4026b3:       0f 58 80 00 0a 00 00    addps  0xa00(%rax),%xmm0
+			  4026ba:       0f 58 90 00 02 00 00    addps  0x200(%rax),%xmm2
+			  4026c1:       0f 58 88 00 03 00 00    addps  0x300(%rax),%xmm1
+			  4026c8:       0f 58 80 00 04 00 00    addps  0x400(%rax),%xmm0
+			  4026cf:       48 83 c0 10             add    $0x10,%rax
+			  4026d3:       0f 58 d5                addps  %xmm5,%xmm2
+			  4026d6:       0f 58 cc                addps  %xmm4,%xmm1
+			  4026d9:       0f 58 c3                addps  %xmm3,%xmm0
+			  4026dc:       41 0f 29 54 15 00       movaps %xmm2,0x0(%r13,%rdx,1)
+			  4026e2:       0f 29 4c 15 00          movaps %xmm1,0x0(%rbp,%rdx,1)
+			  4026e7:       0f 29 04 13             movaps %xmm0,(%rbx,%rdx,1)
+			  4026eb:       48 83 c2 10             add    $0x10,%rdx
+			  4026ef:       4c 39 f2                cmp    %r14,%rdx
+			  4026f2:       75 9c                   jne    402690 <_Z12xgetacch_ssemPDv4_fPKS_S2_S2_S2_S2_S2_S0_S0_S0_+0x240>
 
-		*/
-		// load.
-		__m128 x = _mm_add_ps(axh0, _mm_add_ps(scratch.ah1.x[i], _mm_add_ps(scratch.ah2.x[i], scratch.ah3.x[i])));
-		__m128 y = _mm_add_ps(ayh0, _mm_add_ps(scratch.ah1.y[i], _mm_add_ps(scratch.ah2.y[i], scratch.ah3.y[i])));
-		__m128 z = _mm_add_ps(azh0, _mm_add_ps(scratch.ah1.z[i], _mm_add_ps(scratch.ah2.z[i], scratch.ah3.z[i])));
-		// store.
-		p.AH.x[i] = x;
-		p.AH.y[i] = y;
-		p.AH.z[i] = z;
-	}
+			*/
+			// load.
+			__m128 x = _mm_add_ps(axh0, _mm_add_ps(scratch.ah1.x[i], _mm_add_ps(scratch.ah2.x[i], scratch.ah3.x[i])));
+			__m128 y = _mm_add_ps(ayh0, _mm_add_ps(scratch.ah1.y[i], _mm_add_ps(scratch.ah2.y[i], scratch.ah3.y[i])));
+			__m128 z = _mm_add_ps(azh0, _mm_add_ps(scratch.ah1.z[i], _mm_add_ps(scratch.ah2.z[i], scratch.ah3.z[i])));
+			// store.
+			p.AH.x[i] = x;
+			p.AH.y[i] = y;
+			p.AH.z[i] = z;
+		}
 
 	deallocate(&scratch);
 }
