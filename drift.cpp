@@ -519,14 +519,14 @@ static void drift_kepmd(const float dm, const float es, const float ec, float &x
 	c = sqrtf(1.0f - s * s);
 
 	// computer better value for the root using quartic Newton method
-    f = x - ec * s + es * (1.0f - c) - dm;
-    fp = 1.0f - ec * c + es * s;
-    fpp = ec * s + es * c;
-    fppp = ec * c - es * s;
-    dx = -f / fp;
-    dx = -f / (fp + 0.5f * dx * fpp);
-    dx = -f / (fp + 0.5f * dx * fpp + 0.16666666666666666f * dx * dx * fppp);
-    x = x + dx;
+	f = x - ec * s + es * (1.0f - c) - dm;
+	fp = 1.0f - ec * c + es * s;
+	fpp = ec * s + es * c;
+	fppp = ec * c - es * s;
+	dx = -f / fp;
+	dx = -f / (fp + 0.5f * dx * fpp);
+	dx = -f / (fp + 0.5f * dx * fpp + 0.16666666666666666f * dx * dx * fppp);
+	x = x + dx;
 
 	// excellent approx to sin and cos of x for small x
 	y = x * x;
