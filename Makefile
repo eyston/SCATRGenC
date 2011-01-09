@@ -9,6 +9,7 @@ SRCS +=$(SRCDIR)/getacch.cpp
 SRCS +=$(SRCDIR)/coord.cpp
 SRCS +=$(SRCDIR)/io_input.cpp
 SRCS +=$(SRCDIR)/getacch_sse.cpp
+SRCS +=$(SRCDIR)/drift.cpp
 
 OBJS :=$(addprefix $(OBJDIR)/, $(patsubst %.cpp, %.o, $(notdir $(SRCS))))
 
