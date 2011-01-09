@@ -35,27 +35,21 @@ class Acceleration_8_FortranPlanetSimulation : public testing::Test
 				char string[length] = "";
 				char string2[length] = "";
 				char string3[length] = "";
-
-				while(strcmp(string, "axh,") != 0)
-				{
-					fgets(line, length, input_file);
-					sscanf(line, "%s", string);
-				}
-
 				int i = 1;
 
-				while(strcmp(string, "axh,") == 0)
+				while(fgets(line, length, input_file) != NULL)
 				{
-					float axh, ayh, azh;
-					sscanf(line, "%s %s %s %f %f %f", string, string2, string3, &axh, &ayh, &azh);
-					fortran_accelerations.x[i] = axh;
-					fortran_accelerations.y[i] = ayh;
-					fortran_accelerations.z[i] = azh;
+					sscanf(line, "%s", string);
+					if(strcmp(string, "axh,") == 0)
+					{
+						float axh, ayh, azh;
+						sscanf(line, "%s %s %s %f %f %f", string, string2, string3, &axh, &ayh, &azh);
+						fortran_accelerations.x[i] = axh;
+						fortran_accelerations.y[i] = ayh;
+						fortran_accelerations.z[i] = azh;
 
-					i++;
-
-					if(fgets(line, length, input_file) == NULL)
-						break;
+						i++;
+					}
 				}
 
 				fclose(input_file);
