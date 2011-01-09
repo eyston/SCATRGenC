@@ -225,8 +225,8 @@ static void drift_kepu_stumpff(float x, float &c0, float &c1, float &c2, float &
 	float xm;
 
 	n = 0;
-	xm = 0.0f;
-	while(fabs(x) > xm)
+	xm = 0.1f;
+	while(fabs(x) >= xm)
 	{
 		n = n + 1;
 		x = x / 4.0f;
@@ -285,7 +285,7 @@ static void drift_kepu_new(float s, const float dt, const float r0, const float 
 	int nc;
 	float x, c0, ds, f, fpp, fppp, fdt;
 
-	for(int i = 0; i < 7; ++i)
+	for(nc = 0; nc < 7; ++nc)
 	{
 		x = s * s * alpha;
 		drift_kepu_stumpff(x, c0, c1, c2, c3);
@@ -306,6 +306,7 @@ static void drift_kepu_new(float s, const float dt, const float r0, const float 
 		if(fdt * fdt < DANBYB * DANBYB)
 		{
 			iflgn = 0;
+			return;
 		}
 		// newton's method succeeded
 	}
