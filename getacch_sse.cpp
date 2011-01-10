@@ -652,7 +652,7 @@ void getacch_ir3_sse_test(const size_t nbod, const vec3_sse_t &pos, vec1_sse_t &
 
 	xxx_getacch_ir3_sse(nbod, pos, ir3v);
 
-	for(size_t i = 0; i < pos.capacity; ++i)
+	for(size_t i = 0; i < ir3.capacity; ++i)
 	{
 		ir3[i] = ir3v[i];
 	}
