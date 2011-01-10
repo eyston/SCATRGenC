@@ -205,10 +205,16 @@ union MM_ALIGN64 accelerations_t {
 	struct scalar_t {
 		vec1_scalar_t ir3j;
 		vec1_scalar_t ir3h;
+		vec3_scalar_t ah1;
+		vec3_scalar_t ah2;
+		vec3_scalar_t ah3;
 	};
 	struct sse_t {
 		vec1_sse_t ir3j;
 		vec1_sse_t ir3h;
+		vec3_sse_t ah1;
+		vec3_sse_t ah2;
+		vec3_sse_t ah3;
 	};
 
 	scalar_t scalar;
@@ -222,6 +228,9 @@ class Inner_Accelerations_Vector : public virtual testing::Test
 				accelerations(allocate<accelerations_t>()),
 				vector_ir3j(accelerations->scalar.ir3j),
 				vector_ir3h(accelerations->scalar.ir3h),
+				vector_ah1(accelerations->scalar.ah1),
+				vector_ah2(accelerations->scalar.ah2),
+				vector_ah3(accelerations->scalar.ah3),
 				store(allocate<store_t>()),
 				nbod_v(nbod)
 		{
@@ -235,13 +244,41 @@ class Inner_Accelerations_Vector : public virtual testing::Test
 		void calculate_vector_ir3j()
 		{
 			initialize_planets();
-			getacch_ir3_sse_test(nbod_v, store->sse.planets.J, accelerations->sse.ir3j);
+			x_getacch_ir3_sse_test(nbod_v, store->sse.planets.J, accelerations->sse.ir3j);
 		}
 
 		void calculate_vector_ir3h()
 		{
 			initialize_planets();
-			getacch_ir3_sse_test(nbod_v, store->sse.planets.H, accelerations->sse.ir3h);
+			x_getacch_ir3_sse_test(nbod_v, store->sse.planets.H, accelerations->sse.ir3h);
+		}
+
+		void calculate_vector_ah0()
+		{
+			initialize_planets();
+			calculate_vector_ir3h();
+			x_getacch_ah0_sse_test(nbod_v, store->sse.planets.MASS, accelerations->sse.ir3h, store->sse.planets.H, vector_axh0, vector_ayh0, vector_azh0);
+		}
+
+		void calculate_vector_ah1()
+		{
+			initialize_planets();
+			calculate_vector_ir3h();
+			calculate_vector_ir3j();
+			x_getacch_ah1_sse_test(nbod_v, store->sse.planets.MASS, accelerations->sse.ir3h, accelerations->sse.ir3j, store->sse.planets.H, store->sse.planets.J, accelerations->sse.ah1);
+		}
+
+		void calculate_vector_ah2()
+		{
+			initialize_planets();
+			calculate_vector_ir3j();
+			x_getacch_ah2_sse_test(nbod_v, store->sse.planets.MASS, accelerations->sse.ir3j, store->sse.planets.J, accelerations->sse.ah2);
+		}
+
+		void calculate_vector_ah3()
+		{
+			initialize_planets();
+			x_getacch_ah3_sse_test(nbod_v, store->sse.planets.MASS, store->sse.planets.H, accelerations->sse.ah3);
 		}
 
 	private:
@@ -259,6 +296,10 @@ class Inner_Accelerations_Vector : public virtual testing::Test
 
 	vec1_scalar_t &vector_ir3j;
 	vec1_scalar_t &vector_ir3h;
+	float vector_axh0, vector_ayh0, vector_azh0;
+	vec3_scalar_t &vector_ah1;
+	vec3_scalar_t &vector_ah2;
+	vec3_scalar_t &vector_ah3;
 
 	private:
 
@@ -285,7 +326,6 @@ class Inner_Accelerations_Vector_And_Fortran_8_Planets : public Inner_Accelerati
 {
 protected:
 	Inner_Accelerations_Vector_And_Fortran_8_Planets() : Inner_Accelerations_Vector_8_Planets(), Inner_Accelerations_Fortran_8_Planets() { }
-
 };
 
 TEST_F(Inner_Accelerations_Vector_And_Fortran_8_Planets, should_match_fortran_and_vector_values_for_ir3j)
@@ -307,5 +347,56 @@ TEST_F(Inner_Accelerations_Vector_And_Fortran_8_Planets, should_match_fortran_an
 	for(int i = 1; i < 8; ++i)
 	{
 		ASSERT_NEAR_PERCENT(fortran_ir3h[i], vector_ir3h[i], 0.00001f);
+	}
+}
+
+TEST_F(Inner_Accelerations_Vector_And_Fortran_8_Planets, should_match_fortran_and_vector_values_for_ah0)
+{
+	read_in_fortran_ah0();
+	calculate_vector_ah0();
+
+	ASSERT_NEAR_PERCENT(fortran_axh0, vector_axh0, 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ayh0, vector_ayh0, 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_azh0, vector_azh0, 0.00001f);
+}
+
+
+// E: tolerances are bad on this one ... we need to verify code!
+//TEST_F(Inner_Accelerations_Vector_And_Fortran_8_Planets, should_match_fortran_and_vector_values_for_ah1)
+//{
+//	read_in_fortran_ah1();
+//	calculate_vector_ah1();
+//
+//	for(int i = 1; i < 8; ++i)
+//	{
+//		ASSERT_NEAR_PERCENT(fortran_ah1.x[i], vector_ah1.x[i], 0.00001f);
+//		ASSERT_NEAR_PERCENT(fortran_ah1.y[i], vector_ah1.y[i], 0.00001f);
+//		ASSERT_NEAR_PERCENT(fortran_ah1.z[i], vector_ah1.z[i], 0.00001f);
+//	}
+//}
+
+TEST_F(Inner_Accelerations_Vector_And_Fortran_8_Planets, should_match_fortran_and_vector_values_for_ah2)
+{
+	read_in_fortran_ah2();
+	calculate_vector_ah2();
+
+	for(int i = 1; i < 8; ++i)
+	{
+		ASSERT_NEAR_PERCENT(fortran_ah2.x[i], vector_ah2.x[i], 0.00001f);
+		ASSERT_NEAR_PERCENT(fortran_ah2.y[i], vector_ah2.y[i], 0.00001f);
+		ASSERT_NEAR_PERCENT(fortran_ah2.z[i], vector_ah2.z[i], 0.00001f);
+	}
+}
+
+TEST_F(Inner_Accelerations_Vector_And_Fortran_8_Planets, should_match_fortran_and_vector_values_for_ah3)
+{
+	read_in_fortran_ah3();
+	calculate_vector_ah3();
+
+	for(int i = 1; i < 8; ++i)
+	{
+		ASSERT_NEAR_PERCENT(fortran_ah3.x[i], vector_ah3.x[i], 0.00001f);
+		ASSERT_NEAR_PERCENT(fortran_ah3.y[i], vector_ah3.y[i], 0.00001f);
+		ASSERT_NEAR_PERCENT(fortran_ah3.z[i], vector_ah3.z[i], 0.00001f);
 	}
 }

@@ -647,7 +647,7 @@ void xgetacch_sse(const size_t nbod, planets_sse_t & __restrict p) {
 }
 
 
-void getacch_ir3_sse_test(const size_t nbod, const vec3_sse_t &pos, vec1_sse_t &ir3) {
+void x_getacch_ir3_sse_test(const size_t nbod, const vec3_sse_t &pos, vec1_sse_t &ir3) {
 	__m128 MM_ALIGN16 ir3v[NPLMAX_V];
 
 	xxx_getacch_ir3_sse(nbod, pos, ir3v);
@@ -656,6 +656,35 @@ void getacch_ir3_sse_test(const size_t nbod, const vec3_sse_t &pos, vec1_sse_t &
 	{
 		ir3[i] = ir3v[i];
 	}
+}
+
+void x_getacch_ah0_sse_test(const size_t nbod, const vec1_sse_t mass, const vec1_sse_t ir3h, const vec3_sse_t &h, float &axh0f, float &ayh0f, float &azh0f)
+{
+	__m128 axh0, ayh0, azh0;
+
+	xxx_getacch_ah0_sse(nbod, mass.m, ir3h.m, h, axh0, ayh0, azh0);
+
+	axh0f = extract_float<0>(axh0);
+	ayh0f = extract_float<0>(ayh0);
+	azh0f = extract_float<0>(azh0);
+}
+
+void x_getacch_ah1_sse_test(const size_t nbod, const vec1_sse_t &mass, const vec1_sse_t &ir3h, const vec1_sse_t &ir3j, const vec3_sse_t &h, const vec3_sse_t &j, vec3_sse_t &ah1)
+{
+	xxx_getacch_ah1_sse(nbod, mass.m, ir3h.m, ir3j.m, h, j, ah1);
+}
+
+void x_getacch_ah2_sse_test(const size_t nbod, const vec1_sse_t &mass, const vec1_sse_t &ir3j, const vec3_sse_t &j, vec3_sse_t &ah2)
+{
+	__m128 etaj[NPLMAX_V];
+
+	xxx_getacch_ah2_sse(nbod, mass.m, ir3j.m, j, ah2, etaj);
+}
+
+void x_getacch_ah3_sse_test(const size_t nbod, vec1_sse_t &mass, const vec3_sse_t &h, vec3_sse_t &ah3)
+{
+	getacch_ah3_sse(nbod, mass.m, h.x, h.y, h.z, ah3.x, ah3.y, ah3.z);
+	//getacch_ah3_sse(nbod, mass, p.H.x, p.H.y, p.H.z, scratch.ah3.x, scratch.ah3.y, scratch.ah3.z);
 }
 
 __attribute((used, noinline))
