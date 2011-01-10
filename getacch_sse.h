@@ -9,5 +9,6 @@ void getacch_sse(const size_t nbod, __m128 mass[NPLMAX], const __m128 xj[NPLMAX]
 
 void xgetacch_sse(const size_t nbod, planets_sse_t & __restrict p);
 
+void getacch_ir3_sse_test(const size_t nbod, const vec3_sse_t &pos, vec1_sse_t &ir3);
 
 #endif /* GETACHH_SSE_H_ */

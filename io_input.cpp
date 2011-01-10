@@ -52,7 +52,6 @@ void io_input_planets(const char *input_file_name, size_t &nbod, size_t &npl, fl
 
 	fgets(line, length, input_file);
 	sscanf(line, "%i %i\n", &nbod, &npl);
-	printf("%i, %i\n", nbod, npl);
 
 	fgets(line, length, input_file);
 	sscanf(line, "%f\n", &mass[0]);
@@ -83,7 +82,6 @@ void io_input_particles(const char *input_file_name, size_t &ntp, float xht[NTPM
 
 	fgets(line, length, input_file);
 	sscanf(line, "%i", &ntp);
-	printf("%i\n", ntp);
 
 	for(size_t i = 0; i < ntp; i++)
 	{
@@ -108,7 +106,6 @@ size_t xio_input_particles(const char * const input_file_name, particles_scalar_
 		char line[length];
 		fgets(line, length, input_file);
 		sscanf(line, "%i", &ntp);
-		printf("%i\n", ntp);
 
 		for(size_t i = 0; i < ntp; i++) {
 			fgets(line, length, input_file);
@@ -135,7 +132,6 @@ void xio_input_planets(const char * const input_file_name, size_t &nbod, size_t 
 		char line[length];
 		fgets(line, length, input_file);
 		sscanf(line, "%i %i\n", &nbod, &npl);
-		printf("%i, %i\n", nbod, npl);
 
 		// WTF?
 		fgets(line, length, input_file);

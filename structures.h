@@ -156,9 +156,8 @@ typedef storage_particles_t<float,  NTPMAX> particles_scalar_t;
 typedef storage_particles_t<__m128, NTPMAX> particles_sse_t;
 typedef vec3_t<float, NPLMAX>  vec3_scalar_t;
 typedef vec3_t<__m128, NPLMAX> vec3_sse_t;
-
-
-
+typedef vec1_t<float, NPLMAX>  vec1_scalar_t;
+typedef vec1_t<__m128, NPLMAX> vec1_sse_t;
 
 
 // while we're at it, put that crap here.
