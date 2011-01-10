@@ -14,7 +14,7 @@
 
 typedef storage_t<NPLMAX, NTPMAX> store_t;
 
-class Inner_Accelerations_Fortran
+class Inner_Accelerations_Fortran : public virtual testing::Test
 {
 	protected:
 		Inner_Accelerations_Fortran(const char * input_file_name) : sun_offset(1)
@@ -137,7 +137,7 @@ class Inner_Accelerations_Fortran
 	const int sun_offset;
 };
 
-class Inner_Accelerations_Fortran_8_Planets : public Inner_Accelerations_Fortran, public testing::Test
+class Inner_Accelerations_Fortran_8_Planets : public Inner_Accelerations_Fortran
 {
 	protected:
 		Inner_Accelerations_Fortran_8_Planets() : Inner_Accelerations_Fortran("results.8.out") { }
@@ -215,7 +215,7 @@ union MM_ALIGN64 accelerations_t {
 	sse_t sse;
 };
 
-class Inner_Accelerations_Vector
+class Inner_Accelerations_Vector : public virtual testing::Test
 {
 	protected:
 		Inner_Accelerations_Vector(const char * input_file_name, const int nbod) :
@@ -268,7 +268,7 @@ class Inner_Accelerations_Vector
 	const int nbod_v;
 };
 
-class Inner_Accelerations_Vector_8_Planets : public Inner_Accelerations_Vector, public testing::Test
+class Inner_Accelerations_Vector_8_Planets : public Inner_Accelerations_Vector
 {
 	protected:
 		Inner_Accelerations_Vector_8_Planets() : Inner_Accelerations_Vector("pl.in.8", 2) { }
@@ -281,10 +281,10 @@ TEST_F(Inner_Accelerations_Vector_8_Planets, should_match_file_values_for_single
 	ASSERT_NEAR_PERCENT(8.10678918941581603E-003f, vector_ir3j[1], 0.00001f);
 }
 
-class Inner_Accelerations_Vector_And_Fortran_8_Planets : public Inner_Accelerations_Vector, public Inner_Accelerations_Fortran, public testing::Test
+class Inner_Accelerations_Vector_And_Fortran_8_Planets : public Inner_Accelerations_Vector_8_Planets, public Inner_Accelerations_Fortran_8_Planets
 {
 protected:
-	Inner_Accelerations_Vector_And_Fortran_8_Planets() : Inner_Accelerations_Vector("pl.in.8", 2), Inner_Accelerations_Fortran("results.8.out") { }
+	Inner_Accelerations_Vector_And_Fortran_8_Planets() : Inner_Accelerations_Vector_8_Planets(), Inner_Accelerations_Fortran_8_Planets() { }
 
 };
 
