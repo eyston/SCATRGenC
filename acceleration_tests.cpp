@@ -219,8 +219,8 @@ class Inner_Accelerations_Vector
 		Inner_Accelerations_Vector(const char * input_file_name, const int nbod) :
 				nbod_v(nbod),
 				accelerations(allocate<accelerations_t>()),
-				store(allocate<store_t>())/*,
-				vector_ir3j(accelerations->scalar.ir3j)*/
+				store(allocate<store_t>()),
+				vector_ir3j(accelerations->scalar.ir3j)
 		{
 			file_name = input_file_name;
 		}
@@ -233,13 +233,13 @@ class Inner_Accelerations_Vector
 		{
 			size_t nbod, npl;
 			xio_input_planets(file_name, nbod, npl, store->scalar.planets);
-			xcoord_h2j(nbod_v, store->scalar.planets);
-			getacch_ir3_sse_test(nbod, store->sse.planets.J, accelerations->sse.ir3j);
+			xcoord_h2j(nbod, store->scalar.planets);
+			getacch_ir3_sse_test(nbod_v, store->sse.planets.J, accelerations->sse.ir3j);
 		}
 
 	accelerations_t *accelerations;
 
-	vec1_scalar_t vector_ir3j;
+	vec1_scalar_t &vector_ir3j;
 
 	private:
 
@@ -260,7 +260,7 @@ TEST_F(Inner_Accelerations_Vector_8_Planets, should_match_file_values_for_single
 	calculate_vector_ir3j();
 
 	ASSERT_NEAR_PERCENT(8.10678918941581603E-003f, accelerations->scalar.ir3j[1], 0.00001f);
-	//ASSERT_NEAR_PERCENT(8.10678918941581603E-003f, vector_ir3j[1], 0.00001f);
+	ASSERT_NEAR_PERCENT(8.10678918941581603E-003f, vector_ir3j[1], 0.00001f);
 }
 
 class Inner_Accelerations_Vector_And_Fortran_8_Planets : public Inner_Accelerations_Vector, public Inner_Accelerations_Fortran, public testing::Test
@@ -275,11 +275,11 @@ TEST_F(Inner_Accelerations_Vector_And_Fortran_8_Planets, should_match_fortran_an
 	read_in_fortran_ir3j();
 	calculate_vector_ir3j();
 
-	ASSERT_NEAR_PERCENT(fortran_ir3j[1], accelerations->scalar.ir3j[1], 0.00001f);
-	ASSERT_NEAR_PERCENT(fortran_ir3j[2], accelerations->scalar.ir3j[2], 0.00001f);
-	ASSERT_NEAR_PERCENT(fortran_ir3j[3], accelerations->scalar.ir3j[3], 0.00001f);
-	ASSERT_NEAR_PERCENT(fortran_ir3j[4], accelerations->scalar.ir3j[4], 0.00001f);
-	ASSERT_NEAR_PERCENT(fortran_ir3j[5], accelerations->scalar.ir3j[5], 0.00001f);
-	ASSERT_NEAR_PERCENT(fortran_ir3j[6], accelerations->scalar.ir3j[6], 0.00001f);
-	ASSERT_NEAR_PERCENT(fortran_ir3j[7], accelerations->scalar.ir3j[7], 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ir3j[1], vector_ir3j[1], 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ir3j[2], vector_ir3j[2], 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ir3j[3], vector_ir3j[3], 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ir3j[4], vector_ir3j[4], 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ir3j[5], vector_ir3j[5], 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ir3j[6], vector_ir3j[6], 0.00001f);
+	ASSERT_NEAR_PERCENT(fortran_ir3j[7], vector_ir3j[7], 0.00001f);
 }
